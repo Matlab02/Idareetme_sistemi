@@ -1,2 +1,5 @@
-import { Dashboard } from "@/components/dashboard"; import { ErpShell } from "@/components/erp-shell";
-export default function Home(){ return <ErpShell><Dashboard/></ErpShell> }
+import { redirect } from "next/navigation";
+
+export default function Home() {
+  redirect("/supadmin.html" as any);
+}
