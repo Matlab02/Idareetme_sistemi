@@ -1,0 +1,2 @@
+import { NextRequest, NextResponse } from "next/server"; import { requestService } from "@/services/request.service";
+export async function POST(request:NextRequest){try{const body=await request.json(); const userId=request.headers.get("x-user-id");if(!userId)return NextResponse.json({error:"Unauthorized"},{status:401});return NextResponse.json(await requestService.create(body,userId),{status:201})}catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Sorğu yaradıla bilmədi"},{status:400})}}

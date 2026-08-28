@@ -1,0 +1,3 @@
+import { z } from "zod";
+export const requestItemSchema=z.object({productId:z.string().cuid().optional(),productNameSnapshot:z.string().min(2),quantity:z.coerce.number().positive(),unitId:z.string().cuid(),supplierId:z.string().cuid().optional(),purchasePrice:z.coerce.number().nonnegative().optional(),salePrice:z.coerce.number().nonnegative().optional(),notes:z.string().max(1000).optional()});
+export const createRequestSchema=z.object({customerId:z.string().cuid(),deadline:z.coerce.date().optional(),priority:z.enum(["LOW","NORMAL","HIGH","URGENT"]).default("NORMAL"),notes:z.string().max(3000).optional(),items:z.array(requestItemSchema).min(1)});
