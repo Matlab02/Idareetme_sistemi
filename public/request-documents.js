@@ -132,10 +132,12 @@
     if (requestsNav && !requestsNav.dataset.requestFolderBound) {
       requestsNav.dataset.requestFolderBound = "1";
       requestsNav.classList.add("request-parent");
-      requestsNav.setAttribute("aria-expanded", "true");
+      requestsNav.classList.add("collapsed");
+      requestsNav.setAttribute("aria-expanded", "false");
       const folderGroup = document.createElement("div");
       folderGroup.id = "requestFolderGroup";
-      folderGroup.className = "request-folder-group";
+      folderGroup.className = "request-folder-group collapsed";
+      folderGroup.dataset.open = "false";
       requestsNav.after(folderGroup);
       const addFolder = (id, label, mode, title) => {
         const folder = document.createElement("button");
@@ -150,19 +152,25 @@
       addFolder("rejectedFolderNav", "İmtina qovluğu", "REJECTED", "İmtina edilmiş sorğular");
       addFolder("completedFolderNav", "Tamamlananlar qovluğu", "COMPLETED", "Tamamlanmış sorğular");
       addFolder("waitingCustomerFolderNav", "Müştəri gözlənilir", "WAITING_CUSTOMER", "Müştəri cavabı gözlənilən sorğular");
+      const setFolderOpen = (shouldOpen) => {
+        folderGroup.dataset.open = String(shouldOpen);
+        folderGroup.classList.toggle("collapsed", !shouldOpen);
+        requestsNav.classList.toggle("collapsed", !shouldOpen);
+        requestsNav.setAttribute("aria-expanded", String(shouldOpen));
+      };
       const previousRequestsClick = requestsNav.onclick;
       requestsNav.onclick = (event) => {
         const isRequestsPage = page === "requests";
         const isOpen = folderGroup.dataset.open !== "false";
         const shouldOpen = !isRequestsPage || !isOpen;
-        folderGroup.dataset.open = String(shouldOpen);
-        folderGroup.classList.toggle("collapsed", !shouldOpen);
-        requestsNav.classList.toggle("collapsed", !shouldOpen);
-        requestsNav.setAttribute("aria-expanded", String(shouldOpen));
+        setFolderOpen(shouldOpen);
         folderMode = "MAIN";
         statusFilter = "ALL";
         previousRequestsClick?.call(requestsNav, event);
       };
+      document.querySelectorAll('.nav button[data-page]:not([data-page="requests"])').forEach((button) => button.addEventListener("click", () => setFolderOpen(false)));
+      // The application starts on Dashboard; always begin with request folders closed.
+      setTimeout(() => setFolderOpen(false), 0);
     }
 
     // The shell keeps render() in a page-level lexical binding, so observe #root

@@ -105,6 +105,17 @@
     };
     return worksheets.map(([, source]) => parseSheet(source)).sort((a, b) => b.length - a.length)[0];
   }
+  async function readSpreadsheetRows(file) {
+    const extension = String(file?.name || "").split(".").pop().toLocaleLowerCase("az-AZ");
+    if (extension === "xlsx") return xlsxRows(file);
+    if (extension === "xls" && await isLegacyBinaryXls(file)) throw new Error("Bu köhnə binary .xls formatıdır. Excel-də Fərqli yadda saxla → .xlsx seçib yenidən yükləyin.");
+    if (extension === "xls" && await isZipFile(file)) return xlsxRows(file);
+    const source = await readTextFile(file);
+    if (["csv", "tsv", "txt"].includes(extension)) return csvRows(source);
+    if (["xls", "html", "htm"].includes(extension)) return htmlRows(source);
+    throw new Error("Bu fayl formatı oxunmadı. XLSX, CSV və ya Excel-dən ixrac olunmuş .xls seçin.");
+  }
+  window.readSpreadsheetRows = readSpreadsheetRows;
   const unitValue = (value) => {
     const key = normalized(value).replace(/[.]/g, "");
     return ({ pcs: "ədəd", pc: "ədəd", piece: "ədəd", pieces: "ədəd", adet: "ədəd", eded: "ədəd", kg: "kq", kilo: "kq", kilogram: "kq", gr: "qram", g: "qram", ton: "ton", l: "litr", lt: "litr", meter: "metr", m: "metr", mm: "mm", cm: "sm", box: "qutu", pack: "paket", paket: "paket" }[key] || String(value || "ədəd").replace(/\s+/g, " ").trim() || "ədəd");
@@ -189,7 +200,7 @@
     };
   }
   function downloadSample() {
-    const link = document.createElement("a"); link.href = new URL("techizat-sorgu-numune.xlsx?v=xlsx1", location.href).href; link.download = "techizat-sorgu-numune.xlsx"; link.click(); window.toast("Numune Excel (XLSX) faylı endirildi");
+    const link = document.createElement("a"); link.href = new URL("techizat-sorgu-numune.xlsx?v=xlsx-safe2", location.href).href; link.download = "techizat-sorgu-numune.xlsx"; link.click(); window.toast("Makrosuz Excel nümunəsi (XLSX) endirildi");
   }
   function result(items, filename) {
     const target = document.querySelector("#excelResult");
@@ -237,9 +248,9 @@
       box.innerHTML = `<div class="sample-excel-card" id="sampleExcelCard" style="display:flex;align-items:center;gap:13px;padding:14px 16px;margin:0 0 15px;border:1px solid #cbdcf6;border-radius:13px;background:linear-gradient(135deg,#f0f6ff,#fbfdff);box-shadow:0 5px 14px rgba(36,118,237,.08)"><div class="sample-excel-icon" style="display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:11px;background:#1f9d68;color:#fff;font-size:11px;font-weight:800;letter-spacing:.04em">CSV</div><div class="sample-excel-copy" style="display:grid;gap:3px;min-width:0"><strong style="color:#172b4d;font-size:13px">📥 Boş Excel numune faylı</strong><span style="color:#6f7f96;font-size:12px;line-height:1.45">Sütun başlıqları hazırdır. Məlumatı hər başlığın altına yazın və sonra bu faylı yükləyin.</span><a id="sampleExcelLink" href="techizat-sorgu-numune.csv?v=excel-semi4" download="techizat-sorgu-numune.csv" style="width:max-content;color:#1767ce;font-size:12px;font-weight:750;text-decoration:none">↧ Numunəni birbaşa endir (CSV)</a></div></div><label>Excel-dən məhsul importu</label><input id="excelFile" type="file" accept=".xlsx,.csv,.tsv,.txt,.xls,.html,.htm"><span class="muted">XLSX və CSV ən stabil formatlardır. Numunə Excel-də sütunlara ayrı düşməsi üçün ; ayırıcısından istifadə edir. Fərqli sütun quruluşu tanınmasa, sütun xəritələndirməsi açılır.</span><div class="import-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px"><button type="button" class="secondary" id="downloadExcelTemplate">↧ Nümunəni endir</button><button type="button" class="secondary" id="readExcel">Excel-dən oxu</button></div><div id="excelResult"></div>`;
       form.querySelector(".field.full")?.before(box);
       const sampleLink = box.querySelector("#sampleExcelLink"), sampleIcon = box.querySelector(".sample-excel-icon"), helper = box.querySelector(".muted");
-      if (sampleLink) { sampleLink.href = "techizat-sorgu-numune.xlsx?v=xlsx1"; sampleLink.download = "techizat-sorgu-numune.xlsx"; sampleLink.textContent = "↧ Numunəni birbaşa endir (XLSX)"; }
+      if (sampleLink) { sampleLink.href = "techizat-sorgu-numune.xlsx?v=xlsx-safe2"; sampleLink.download = "techizat-sorgu-numune.xlsx"; sampleLink.textContent = "↧ Nümunəni birbaşa endir (XLSX)"; }
       if (sampleIcon) sampleIcon.textContent = "XLSX";
-      if (helper) helper.textContent = "XLSX formatı sütunları avtomatik ayırır. Fərqli sütun quruluşu tanınmasa, sütun xəritələndirməsi açılır.";
+      if (helper) helper.textContent = "Makrosuz XLSX formatıdır. Məhsul məlumatını sütun başlıqlarının altına daxil edin.";
       const readButton = box.querySelector("#readExcel"), downloadButton = box.querySelector("#downloadExcelTemplate");
       if (readButton) readButton.onclick = readFile;
       if (downloadButton) downloadButton.onclick = downloadSample;
