@@ -392,5 +392,7 @@
     style.textContent += `.document-filter{margin:14px 0 12px;padding:12px;border:1px solid #dae4f0;border-radius:12px;background:#f8fbff}.document-filter-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;color:#52627a}.document-filter-title b{color:#1b2d4a}.document-filter-fields{display:grid;grid-template-columns:minmax(190px,2fr) minmax(150px,1.35fr) repeat(4,minmax(105px,1fr)) auto;gap:8px}.document-filter input,.document-filter select{height:37px;min-width:0;border:1px solid #d5e0ed;border-radius:8px;padding:8px 9px;background:#fff;font:inherit;font-size:12px}.document-filter .secondary{white-space:nowrap;padding:7px 11px}@media(max-width:1000px){.document-filter-fields{grid-template-columns:repeat(3,minmax(130px,1fr))}.document-filter-fields>input:first-child{grid-column:span 2}}@media(max-width:600px){.document-filter-fields{grid-template-columns:1fr 1fr}.document-filter-fields>input:first-child{grid-column:span 2}}`;
   }
   window.addEventListener("load", () => { styles(); ensureData(); bind(); });
-  window.invoiceModule = { parseInvoice, render, openInvoiceDetails, openOutgoingDetails, openSaleDialog, applyOutgoing, saleDraftIssues, saveOutgoingDraft, lotSales };
+  // Shared entry points for the single and bulk incoming-invoice workflows.
+  // Both use the same transaction that creates products, lots and stock movements.
+  window.invoiceModule = { parseInvoice, readInvoiceFile, applyIncoming, ensureData, render, openInvoiceDetails, openOutgoingDetails, openSaleDialog, applyOutgoing, saleDraftIssues, saveOutgoingDraft, lotSales };
 })();
