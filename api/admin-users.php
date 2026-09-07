@@ -50,10 +50,24 @@ function listErpUsers(mysqli $conn): array {
     return $users;
 }
 
+function listAvailableAccounts(mysqli $conn): array {
+    $result = $conn->query('SELECT u.id, u.username, COALESCE(p.display_name, u.username) AS display_name
+        FROM users u
+        LEFT JOIN erp_user_profiles p ON p.user_id = u.id
+        WHERE p.user_id IS NULL OR p.is_erp_user = 0
+        ORDER BY display_name, u.username');
+    $users = [];
+    while ($row = $result->fetch_assoc()) {
+        $users[] = ['id' => (string) $row['id'], 'username' => (string) $row['username'], 'name' => (string) $row['display_name']];
+    }
+    return $users;
+}
+
 requireErpSuperadmin($conn, $current_user_id);
 if (!ensureErpUserProfiles($conn)) adminUsersResponse(['error' => 'İstifadəçi profilləri hazırlana bilmədi.'], 500);
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (($_GET['scope'] ?? '') === 'available') adminUsersResponse(['users' => listAvailableAccounts($conn)]);
     adminUsersResponse(['users' => listErpUsers($conn)]);
 }
 
@@ -95,6 +109,23 @@ if ($action === 'create') {
         $cleanup->close();
         adminUsersResponse(['error' => 'İstifadəçi profili yaradıla bilmədi.'], 500);
     }
+    $profile->close();
+    adminUsersResponse(['ok' => true, 'users' => listErpUsers($conn)]);
+}
+
+if ($action === 'activate-erp-user') {
+    $userId = (int) ($payload['userId'] ?? 0);
+    $name = trim((string) ($payload['name'] ?? ''));
+    if ($userId <= 0) adminUsersResponse(['error' => 'İstifadəçi seçilməyib.'], 422);
+    $account = $conn->prepare('SELECT username FROM users WHERE id = ? LIMIT 1');
+    $account->bind_param('i', $userId); $account->execute();
+    $row = $account->get_result()->fetch_assoc(); $account->close();
+    if (!$row) adminUsersResponse(['error' => 'İstifadəçi tapılmadı.'], 404);
+    if ($name === '') $name = (string) $row['username'];
+    if (mb_strlen($name, 'UTF-8') > 160) adminUsersResponse(['error' => 'Ad çox uzundur.'], 422);
+    $profile = $conn->prepare('INSERT INTO erp_user_profiles (user_id, display_name, is_erp_user) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), is_erp_user = 1');
+    $profile->bind_param('is', $userId, $name);
+    if (!$profile->execute()) { $profile->close(); adminUsersResponse(['error' => 'ERP To-do istifadəçisi aktivləşdirilə bilmədi.'], 500); }
     $profile->close();
     adminUsersResponse(['ok' => true, 'users' => listErpUsers($conn)]);
 }
