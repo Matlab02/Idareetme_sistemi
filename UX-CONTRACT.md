@@ -64,6 +64,7 @@
 | Upload | file picker/drop zone | per-file progress | same entity | toast + document row | retry/remove | upload trigger |
 | To-do create | primary “Yeni tapşırıq” | stable busy button | To-do list | toast | entered values preserved | list heading |
 | To-do recipient | “Bütün istifadəçilər” or named user selection | selected recipients saved with task | same task card | recipient label | validation keeps form | recipient group |
+| Köhnə Superadmin hesablarının köçürülməsi | Superadmin “Köhnə istifadəçiləri bazaya köçür” | sabit düymə | İstifadəçilər siyahısı | say məlumatlı toast | lokal siyahı dəyişməz qalır | istifadəçi siyahısı |
 | To-do icra statusu | Qəbul etdim / İcra edirəm / Tamamla | serverdə saxlanır | eyni To-do kartı | status və qəbul edən istifadəçi | xəta kartı dəyişməz saxlayır | növbəti status düyməsi |
 | To-do complete | row action | immediate local save | same filtered list | toast | row remains unchanged on failed save | action button |
 | To-do delete | danger row action, then confirmation | stable delete button | same filtered list | toast + audit event | cancel keeps task unchanged | cancel button |
