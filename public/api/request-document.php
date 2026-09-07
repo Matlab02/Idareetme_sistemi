@@ -44,8 +44,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') requestDocumentJson(['ok' => false, 'error' => 'İcazə verilməyən əməliyyat.'], 405);
-$requestId = (string) ($_POST['requestId'] ?? ''); $type = (string) ($_POST['type'] ?? ''); $file = $_FILES['file'] ?? null;
-if (!preg_match('/^[A-Za-z0-9_-]{3,80}$/', $requestId) || !in_array($type, REQUEST_DOCUMENT_TYPES, true)) requestDocumentJson(['ok' => false, 'error' => 'Sorğu və ya sənəd növü düzgün deyil.'], 422);
+
+$action = (string) ($_POST['action'] ?? 'upload');
+$requestId = (string) ($_POST['requestId'] ?? '');
+if (!preg_match('/^[A-Za-z0-9_-]{3,80}$/', $requestId)) requestDocumentJson(['ok' => false, 'error' => 'Sorğu açarı düzgün deyil.'], 422);
+
+if ($action === 'delete') {
+    $documentId = (string) ($_POST['documentId'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $documentId)) requestDocumentJson(['ok' => false, 'error' => 'Sənəd açarı düzgün deyil.'], 422);
+    $remove = $conn->prepare('DELETE FROM erp_request_documents WHERE id = ? AND request_id = ?');
+    if (!$remove) requestDocumentJson(['ok' => false, 'error' => 'Sənəd silmə əməliyyatı hazırlana bilmədi.'], 500);
+    $remove->bind_param('ss', $documentId, $requestId);
+    if (!$remove->execute()) { $remove->close(); requestDocumentJson(['ok' => false, 'error' => 'Sənəd silinə bilmədi.'], 500); }
+    $deleted = $remove->affected_rows > 0; $remove->close();
+    if (!$deleted) requestDocumentJson(['ok' => false, 'error' => 'Sənəd tapılmadı.'], 404);
+    requestDocumentJson(['ok' => true]);
+}
+
+if ($action !== 'upload') requestDocumentJson(['ok' => false, 'error' => 'Əməliyyat növü düzgün deyil.'], 422);
+$type = (string) ($_POST['type'] ?? ''); $file = $_FILES['file'] ?? null;
+if (!in_array($type, REQUEST_DOCUMENT_TYPES, true)) requestDocumentJson(['ok' => false, 'error' => 'Sənəd növü düzgün deyil.'], 422);
 if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) requestDocumentJson(['ok' => false, 'error' => 'Fayl yüklənmədi.'], 422);
 if ((int) $file['size'] < 1 || (int) $file['size'] > REQUEST_DOCUMENT_MAX_BYTES) requestDocumentJson(['ok' => false, 'error' => 'Faylın həcmi 12 MB-dan çox ola bilməz.'], 422);
 

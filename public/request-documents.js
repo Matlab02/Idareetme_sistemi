@@ -125,7 +125,7 @@
   function addPanel(request) {
     styles(); const mainPanel = document.querySelector(".detail-prices")?.closest(".panel"); if (!mainPanel || document.querySelector(".documents-panel")) return;
     request.documents ||= [];
-    const panel = document.createElement("section"); panel.className = "panel documents-panel"; panel.innerHTML = `<div class="documents-head"><div><h2>Sənədlər</h2><p>Bu sorğu üzrə sənədləri istənilən statusda əlavə edə və lazım olduqda yenidən yükləyə bilərsiniz.</p></div><span class="badge">3 sənəd tələb olunur</span></div><div class="document-grid">${required.map((doc) => { const saved = request.documents.find((item) => item.type === doc.type); return `<div class="document-card ${saved ? "ready" : ""}" data-doc-card="${doc.type}"><b>${doc.title}</b><small>${doc.hint}</small><input id="doc-${doc.type}" class="required-document" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" data-doc-type="${doc.type}"><label for="doc-${doc.type}">${saved ? "↻ Sənədi dəyiş" : "＋ Sənəd əlavə et"}</label>${saved ? `<span class="file-name">✓ ${esc(saved.filename)}</span>` : `<span class="muted">PDF, Word, Excel və şəkil</span>`}</div>`; }).join("")}</div><div class="doc-progress"><strong>${request.documents.length}/3</strong> sənəd əlavə olunub. ${request.documents.length === 3 ? "Sorğu tamamlanmağa hazırdır." : "Çatışmayan sənədləri əlavə edin."}</div>`;
+    const panel = document.createElement("section"); panel.className = "panel documents-panel"; panel.innerHTML = `<div class="documents-head"><div><h2>Sənədlər</h2><p>Bu sorğu üzrə sənədləri istənilən statusda əlavə edə, dəyişə və silə bilərsiniz.</p></div><span class="badge">3 sənəd tələb olunur</span></div><div class="document-grid">${required.map((doc) => { const saved = request.documents.find((item) => item.type === doc.type); return `<div class="document-card ${saved ? "ready" : ""}" data-doc-card="${doc.type}"><b>${doc.title}</b><small>${doc.hint}</small><input id="doc-${doc.type}" class="required-document" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" data-doc-type="${doc.type}">${saved ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label for="doc-${doc.type}">↻ Dəyiş</label><button type="button" class="document-remove" data-doc-type="${doc.type}" style="border:1px solid #f2c8d0;background:#fff7f8;color:#c23b51;border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Sil</button></div><span class="file-name">✓ ${esc(saved.filename)}</span>` : `<label for="doc-${doc.type}">＋ Sənəd əlavə et</label><span class="muted">PDF, Word, Excel və şəkil</span>`}</div>`; }).join("")}</div><div class="doc-progress"><strong>${request.documents.length}/3</strong> sənəd əlavə olunub. ${request.documents.length === 3 ? "Sorğu tamamlanmağa hazırdır." : "Çatışmayan sənədləri əlavə edin."}</div>`;
     mainPanel.after(panel);
     panel.querySelectorAll(".required-document").forEach((input) => input.onchange = () => { const file = input.files?.[0]; if (!file) return; request.documents = (request.documents || []).filter((item) => item.type !== input.dataset.docType); request.documents.push({ type: input.dataset.docType, filename: file.name, mimeType: file.type, size: file.size, uploadedAt: new Date().toISOString() }); audit("UPLOAD", `${request.id}:${input.dataset.docType}`); save(); panel.remove(); addPanel(request); toast(`${file.name} sənədlərə əlavə edildi`); });
     panel.querySelectorAll(".required-document").forEach((input) => input.onchange = async () => {
@@ -155,6 +155,25 @@
         try { const url = `api/request-document.php?id=${encodeURIComponent(saved.documentId)}`; const response = await fetch(url, { headers: { Authorization: `Bearer ${session.token}` } }); if (!response.ok) throw new Error("Sənəd tapılmadı."); const blob = await response.blob(); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = saved.filename || "sənəd"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 0); } catch (error) { toast(error.message || "Sənəd endirilə bilmədi."); }
       };
       card.append(button);
+    });
+    panel.querySelectorAll(".document-remove").forEach((button) => button.onclick = async () => {
+      const type = button.dataset.docType;
+      const saved = (request.documents || []).find((item) => item.type === type);
+      if (!saved) return;
+      if (!confirm(`“${saved.filename}” sənədi silinsin?`)) return;
+      let session; try { session = JSON.parse(sessionStorage.getItem("erp-auth-session") || "null"); } catch {}
+      if (!session?.token) return toast("Sənədi silmək üçün sistemə yenidən daxil olun.");
+      button.disabled = true; button.textContent = "Silinir…";
+      try {
+        if (saved.documentId) {
+          const form = new FormData(); form.append("action", "delete"); form.append("requestId", request.id); form.append("documentId", saved.documentId);
+          const response = await fetch("api/request-document.php", { method: "POST", headers: { Authorization: `Bearer ${session.token}` }, body: form });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Sənəd silinə bilmədi.");
+        }
+        request.documents = (request.documents || []).filter((item) => item.type !== type);
+        audit("DELETE_DOCUMENT", `${request.id}:${type}`); save(); panel.remove(); addPanel(request); toast("Sənəd silindi.");
+      } catch (error) { button.disabled = false; button.textContent = "Sil"; toast(error.message || "Sənəd silinə bilmədi."); }
     });
     const saveButton = document.querySelector("#detailSave"); if (saveButton && !saveButton.dataset.documentBound) { saveButton.dataset.documentBound = "1"; const previous = saveButton.onclick; saveButton.onclick = () => { const status = document.querySelector("#detailStatus")?.value; if (status === "COMPLETED" && (request.documents || []).length < required.length) return toast("Sorğunu tamamlamaq üçün 3 məcburi sənədi əlavə edin."); previous?.(); }; }
   }
