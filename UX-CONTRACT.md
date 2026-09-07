@@ -62,6 +62,7 @@
 | Soft-delete | danger action | confirmation | owning list | toast | cancel returns unchanged | prior safe trigger/list |
 | Search | input, 300ms for remote | stable results | same list | result count | clear button | search input |
 | Upload | file picker/drop zone | per-file progress | same entity | toast + document row | retry/remove | upload trigger |
+| Əlavə sorğu sənədi | “Əlavə sənəd yüklə” multi-file picker | bölmə passivləşir | eyni sorğu sənədləri | yüklənən fayl sayı və endirmə sətri | mövcud fayllar qalır, yenidən seçilir | əlavə sənədlər bölməsi |
 | To-do create | primary “Yeni tapşırıq” | stable busy button | To-do list | toast | entered values preserved | list heading |
 | To-do recipient | “Bütün istifadəçilər” or named user selection | selected recipients saved with task | same task card | recipient label | validation keeps form | recipient group |
 | Köhnə Superadmin hesablarının köçürülməsi | Superadmin “Köhnə istifadəçiləri bazaya köçür” | sabit düymə | İstifadəçilər siyahısı | say məlumatlı toast | lokal siyahı dəyişməz qalır | istifadəçi siyahısı |

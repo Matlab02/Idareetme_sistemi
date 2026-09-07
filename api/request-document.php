@@ -10,7 +10,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/protect.php';
 
 const REQUEST_DOCUMENT_MAX_BYTES = 12 * 1024 * 1024;
-const REQUEST_DOCUMENT_TYPES = ['DELIVERY_HANDOVER', 'PRICE_AGREEMENT', 'INVOICE'];
+const REQUEST_DOCUMENT_TYPES = ['DELIVERY_HANDOVER', 'PRICE_AGREEMENT', 'INVOICE', 'ADDITIONAL'];
 const REQUEST_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'];
 
 function requestDocumentJson(array $payload, int $status = 200): never { http_response_code($status); header('Content-Type: application/json; charset=utf-8'); echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
