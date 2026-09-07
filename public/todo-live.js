@@ -67,11 +67,12 @@
   }
   async function open() {
     try { await loadDirectory(); } catch (error) { return toast("ERP istifadəçi siyahısı yüklənmədi."); }
-    const choices = directory.map(user => `<label class="todo-recipient-choice"><input type="checkbox" name="recipients" value="${escText(user.username)}"><span>${escText(user.name)}</span><small>@${escText(user.username)}</small></label>`).join("");
+    const choices = directory.map(user => `<label class="todo-recipient-choice"><input type="checkbox" name="recipients" value="${escText(user.username)}" onchange="window.liveTodo.singleRecipient(this)"><span>${escText(user.name)}</span><small>@${escText(user.username)}</small></label>`).join("");
     modal(`<div class="todo-modal-heading"><span>ERP İŞ PLANI</span><h2>Yeni tapşırıq</h2><p>Tapşırıq yalnız seçdiyiniz ERP istifadəçilərinə görünəcək.</p></div><form id="liveTodoForm" class="form" novalidate><div class="field full"><label for="liveTodoTitle">Tapşırığın adı</label><input id="liveTodoTitle" name="title" maxlength="220" required placeholder="Məsələn: Təchizatçı qiymətini təsdiqlə"></div><div class="field"><label for="liveTodoRequest">Əlaqəli sorğu</label><input id="liveTodoRequest" name="requestId" placeholder="SR-2026-00125"></div><div class="field"><label for="liveTodoPriority">Prioritet</label><select id="liveTodoPriority" name="priority"><option>Təcili</option><option>Yüksək</option><option selected>Normal</option><option>Aşağı</option></select></div><fieldset class="field full todo-recipient-field"><legend>Göndəriləcək ERP istifadəçiləri</legend><div class="todo-recipient-list"><label class="todo-recipient-choice all"><input type="checkbox" name="recipients" value="ALL" checked onchange="window.liveTodo.allRecipients(this)"><span>Bütün ERP istifadəçiləri</span></label>${choices}</div><small>Saytın digər adminləri bu siyahıda görünmür.</small></fieldset><div class="field"><label for="liveTodoDate">Son tarix</label><input id="liveTodoDate" name="dueDate" type="date"></div><div class="field full"><label for="liveTodoNote">Qeyd</label><textarea id="liveTodoNote" name="note" maxlength="3000" placeholder="Nəticə və ya növbəti addım..."></textarea></div><p id="liveTodoError" class="todo-form-error" role="alert"></p></form><div class="actions"><button type="button" class="secondary" onclick="closeModal()">Ləğv et</button><button type="button" class="primary" id="liveTodoSave" onclick="window.liveTodo.create()">Göndər</button></div>`);
     setTimeout(() => document.querySelector("#liveTodoTitle")?.focus(), 0);
   }
   function allRecipients(input) { if (input.checked) document.querySelectorAll('#liveTodoForm input[name="recipients"]:not([value="ALL"])').forEach(item => item.checked = false); }
+  function singleRecipient(input) { if (input.checked) { const all = document.querySelector('#liveTodoForm input[name="recipients"][value="ALL"]'); if (all) all.checked = false; } }
   function selectedRecipients() { const values = [...new FormData(document.querySelector("#liveTodoForm")).getAll("recipients")].map(String); return values.includes("ALL") ? ["ALL"] : [...new Set(values)]; }
   async function create() {
     const form = document.querySelector("#liveTodoForm"), error = document.querySelector("#liveTodoError"), values = Object.fromEntries(new FormData(form)), recipients = selectedRecipients();
@@ -90,7 +91,7 @@
     if (initialized) return; initialized = true; injectStyles(); const legacyRender = render;
     render = function () { if (page === "todos") { document.querySelector("#root").innerHTML = pageContent(); nav(); document.title = "To-do · AzPlom"; return; } legacyRender(); };
     const navItem = document.querySelector('[data-page="todos"]'); if (navItem) navItem.onclick = () => { page = "todos"; filter = ""; render(); void refresh(); };
-    window.liveTodo = { open, create, status: changeStatus, remove, confirmRemove, refresh, filter: setFilter, allRecipients };
+    window.liveTodo = { open, create, status: changeStatus, remove, confirmRemove, refresh, filter: setFilter, allRecipients, singleRecipient };
     void refresh({ paint: false });
     window.addEventListener("erp-session-ready", () => { void refresh(); });
     window.addEventListener("focus", () => { if (page === "todos") void refresh(); });
