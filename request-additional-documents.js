@@ -22,7 +22,8 @@
     const progress = panel.querySelector(".doc-progress");
     if (!progress) return;
     const requiredDone = requiredCount(request), supporting = (request.documents || []).filter(document => document.type === "ADDITIONAL").length;
-    progress.innerHTML = `<strong>${requiredDone}/3</strong> məcburi sənəd əlavə olunub. ${requiredDone === 3 ? "Sorğu tamamlanmağa hazırdır." : "Çatışmayan məcburi sənədləri əlavə edin."}${supporting ? ` <span class="muted">${supporting} əlavə sənəd də qoşulub.</span>` : ""}`;
+    const markup = `<strong>${requiredDone}/3</strong> məcburi sənəd əlavə olunub. ${requiredDone === 3 ? "Sorğu tamamlanmağa hazırdır." : "Çatışmayan məcburi sənədləri əlavə edin."}${supporting ? ` <span class="muted">${supporting} əlavə sənəd də qoşulub.</span>` : ""}`;
+    if (progress.innerHTML !== markup) progress.innerHTML = markup;
   }
 
   async function uploadAdditional(request, input, section) {
