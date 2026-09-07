@@ -4,7 +4,63 @@
   const esc=s=>String(s??'').replace(/[&<>'"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[x]));
   const hash=async value=>{const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value));return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('')};
   const apiLogin=async(username,password)=>{try{const res=await fetch('api/auth.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});const data=await res.json();if(res.ok&&data?.token)return data}catch{}return null};
-const installLiveBridge=()=>{const endpoint='api/erp-state.php',token=()=>{try{return JSON.parse(sessionStorage.getItem(SESSION)||'null')?.token||''}catch{return''}},headers=()=>{const t=token();return t?{Authorization:`Bearer ${t}`}:null};let latestState='';const loadState=async()=>{const h=headers();if(!h)return{ok:false,reason:'NO_SESSION'};try{const res=await fetch(endpoint,{headers:h,cache:'no-store'}),data=await res.json();if(!res.ok)return{ok:false,error:data?.error||'STATE_LOAD_FAILED'};if(data?.state&&typeof db!=='undefined'){const nextVersion=String(data.updatedAt||'');if(nextVersion&&nextVersion===latestState)return{ok:true,unchanged:true};db=data.state;window.db=db;latestState=nextVersion;localStorage.setItem('erp-prototype-v2',JSON.stringify(db));if(typeof render==='function')render();window.dispatchEvent(new Event('erp-state-loaded'));return{ok:true,updated:true}}return{ok:true,empty:true}}catch{return{ok:false,error:'NETWORK_ERROR'}}};window.erpLoadState=loadState;window.erpPersist=async state=>{const h=headers();if(!h)return{ok:false,reason:'NO_SESSION'};try{const res=await fetch(endpoint,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify({state})}),data=await res.json();if(res.ok)latestState=String(data?.updatedAt||latestState);return{ok:res.ok,...data}}catch{return{ok:false,error:'NETWORK_ERROR'}}};document.addEventListener('DOMContentLoaded',()=>{void loadState()});window.addEventListener('focus',()=>{void loadState()});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void loadState()});setInterval(()=>{if(document.visibilityState==='visible')void loadState()},15000)};
+  const installLiveBridge = () => {
+    const endpoint = "api/erp-state.php";
+    const token = () => { try { return JSON.parse(sessionStorage.getItem(SESSION) || "null")?.token || ""; } catch { return ""; } };
+    const headers = () => { const value = token(); return value ? { Authorization: `Bearer ${value}` } : null; };
+    let latestState = "";
+
+    // State refreshes may happen when a native file selector closes.  Keep an
+    // already-open request detail view open instead of falling back to Dashboard.
+    const renderCurrentView = () => {
+      const match = location.hash.match(/^#request=(.+)$/);
+      const requestId = match ? decodeURIComponent(match[1]) : "";
+      const exists = requestId && Array.isArray(db?.requests) && db.requests.some((request) => request.id === requestId);
+      if (exists && typeof window.openDetail === "function") {
+        window.openDetail(requestId);
+        return;
+      }
+      if (typeof render === "function") render();
+    };
+
+    const loadState = async () => {
+      const currentHeaders = headers();
+      if (!currentHeaders) return { ok: false, reason: "NO_SESSION" };
+      try {
+        const res = await fetch(endpoint, { headers: currentHeaders, cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok) return { ok: false, error: data?.error || "STATE_LOAD_FAILED" };
+        if (data?.state && typeof db !== "undefined") {
+          const nextVersion = String(data.updatedAt || "");
+          if (nextVersion && nextVersion === latestState) return { ok: true, unchanged: true };
+          db = data.state;
+          window.db = db;
+          latestState = nextVersion;
+          localStorage.setItem("erp-prototype-v2", JSON.stringify(db));
+          renderCurrentView();
+          window.dispatchEvent(new Event("erp-state-loaded"));
+          return { ok: true, updated: true };
+        }
+        return { ok: true, empty: true };
+      } catch { return { ok: false, error: "NETWORK_ERROR" }; }
+    };
+
+    window.erpLoadState = loadState;
+    window.erpPersist = async (state) => {
+      const currentHeaders = headers();
+      if (!currentHeaders) return { ok: false, reason: "NO_SESSION" };
+      try {
+        const res = await fetch(endpoint, { method: "POST", headers: { ...currentHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ state }) });
+        const data = await res.json();
+        if (res.ok) latestState = String(data?.updatedAt || latestState);
+        return { ok: res.ok, ...data };
+      } catch { return { ok: false, error: "NETWORK_ERROR" }; }
+    };
+    document.addEventListener("DOMContentLoaded", () => { void loadState(); });
+    window.addEventListener("focus", () => { void loadState(); });
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void loadState(); });
+    setInterval(() => { if (document.visibilityState === "visible") void loadState(); }, 15000);
+  };
   installLiveBridge();
   const read=()=>{let s;try{s=JSON.parse(localStorage.getItem(STORE)||'null')}catch{}if(!s||!Array.isArray(s.users))s={users:[{id:'u-superadmin',name:'Sami',username:'Sami',role:'SUPERADMIN',passwordHash:ADMIN_HASH,createdAt:'29.08.2026'}],activity:[]};s.users.forEach(u=>{if(u.role!=='SUPERADMIN')u.role='ADMIN'});if(!s.users.some(u=>u.username?.toLowerCase()==='sami'))s.users.unshift({id:'u-superadmin',name:'Sami',username:'Sami',role:'SUPERADMIN',passwordHash:ADMIN_HASH,createdAt:'29.08.2026'});localStorage.setItem(STORE,JSON.stringify(s));return s};
   const styles=()=>{if(document.getElementById('authGateStyles'))return;const s=document.createElement('style');s.id='authGateStyles';s.textContent='.auth-gate{min-height:100vh;display:grid;place-items:center;padding:25px;background:radial-gradient(circle at 8% 0%,#e4efff 0,transparent 38%),radial-gradient(circle at 92% 100%,#eee7ff 0,transparent 35%),var(--bg)}.auth-card{width:min(430px,100%);padding:36px;border:1px solid #fff;border-radius:23px;background:#fffffff2;box-shadow:0 18px 55px #1527461a}.auth-mark{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:linear-gradient(135deg,#276fe9,#6742bb);color:#fff;font-weight:800;font-size:21px}.auth-card .eyebrow{margin-top:24px}.auth-card h1{margin:6px 0 8px}.auth-card p{color:var(--muted);line-height:1.55;margin:0 0 22px}.auth-field{display:grid;gap:7px;margin-bottom:14px}.auth-field label{font-size:12px;font-weight:700;color:#526078}.auth-field input{padding:12px;border:1px solid #d9e2ee;border-radius:10px;font:inherit}.auth-field input:focus{outline:0;border-color:#7ea8f4;box-shadow:0 0 0 3px #dceaff}.auth-error{min-height:19px;color:#c43d51;font-size:12px;font-weight:650;margin-bottom:9px}.auth-submit{width:100%;padding:12px;border:0;border-radius:10px;background:var(--ink);color:#fff;font-weight:750}.auth-caption{font-size:11px!important;text-align:center;margin:16px 0 0!important;color:#8a97aa!important}.auth-logout{margin-left:8px}.super-nav-item{color:#7042be!important;background:#faf7ff!important}.dark .auth-gate{background:radial-gradient(circle at 8% 0%,#1d3255 0,transparent 38%),var(--bg)}.dark .auth-card{background:#142035;border-color:#2c3a51}.dark .auth-field input{background:#18263d;color:var(--ink);border-color:#35445d}';document.head?.append(s)};
