@@ -33,6 +33,7 @@
 | Scrollbar | `design-system.css` global rules | DESIGN.md | stable gutter where needed | computed style |
 | Toast | global `.toast` + `toast()` | UX contract | success / warning / info / error | live region audit |
 | CRUD | feature modules + `render()` | UX contract | return to owner / detail stay | browser flow |
+| ERP istifadəçiləri və To-do alıcıları | `superadmin-users.js` + `erp_user_profiles` | Superadmin “İstifadəçilər” siyahısı | Superadmin / Admin | browser flow + server list equality |
 | To-do | `todo-module.js` + shared `.field`, toast and modal | UX contract | open / completed filters | browser flow |
 
 ## Component behavior
@@ -95,7 +96,7 @@
 
 ## Permission and clipboard
 
-- Superadmin-only user management is hidden for admin users and enforced server-side.
+- Superadmin-only user management is hidden for admin users and enforced server-side. Every account created there is automatically an ERP and To-do account; there is no separate recipient directory.
 - Forbidden direct access receives an explanatory access-denied state.
 
 ## Migration status
