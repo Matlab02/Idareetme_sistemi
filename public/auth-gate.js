@@ -17,6 +17,9 @@
       const requestId = match ? decodeURIComponent(match[1]) : "";
       const exists = requestId && Array.isArray(db?.requests) && db.requests.some((request) => request.id === requestId);
       const isViewingRequest = typeof page !== "undefined" && page === "request-detail" && Boolean(document.querySelector("#backRequests"));
+      // A user may be editing an official document spreadsheet. Do not replace
+      // their unsaved cells when another user updates the shared ERP state.
+      if (typeof page !== "undefined" && page === "official-document") return;
       if (exists && isViewingRequest && typeof window.openRequestWorkspace === "function") {
         window.openRequestWorkspace(requestId);
         return;
