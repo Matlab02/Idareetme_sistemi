@@ -3,9 +3,9 @@
   "use strict";
   const VAT = 18;
   const TYPES = {
-    INVOICE: { label: "Hesab-faktura", title: "HESAB-FAKTURA", short: "HF" },
-    DELIVERY_HANDOVER: { label: "Təhvil-təslim aktı", title: "TƏHVİL-TƏSLİM AKTI", short: "TT" },
-    PRICE_AGREEMENT: { label: "Qiymət razılaşma protokolu", title: "QİYMƏT RAZILAŞMA PROTOKOLU", short: "QRP" },
+    INVOICE: { label: "Hesab-faktura", title: "HESAB FAKTURA", short: "HF" },
+    DELIVERY_HANDOVER: { label: "Təhvil-təslim aktı", title: "TƏHVİL TƏSLİM AKTI", short: "TT" },
+    PRICE_AGREEMENT: { label: "Qiymət razılaşma protokolu", title: "Qiymət razılaşma pratokolu", short: "QRP" },
   };
   const TEMPLATES = {
     INVOICE: "templates/HF-yeni.xlsx",
@@ -37,7 +37,7 @@
     date: today(),
     number: request.id.replace(/^SR-/, ""),
     title: TYPES[type].title,
-    intro: "Aşağıda qeyd olunan malların göndərilməsi ilə bağlı tərəflər arasında razılaşma əsasında tərtib edilmişdir.",
+    intro: "Aşağıda qeyd olunan malların göndərilməsi haqqında çərçivə müqaviləsinin şərtlərinin əsasında sifariş olunmuşdur.",
     seller: AZPLOM.seller,
     sellerAddress: AZPLOM.sellerAddress,
     sellerPhone: AZPLOM.sellerPhone,
@@ -60,6 +60,12 @@
     const base = defaultDocument(request, type), saved = request.officeDocuments?.[type];
     if (!saved) return structuredClone(base);
     const draft = { ...base, ...saved, items: saved.items?.length ? saved.items : base.items };
+    const legacyTitles = {
+      INVOICE: ["HESAB-FAKTURA", "HESAB FAKTURA"],
+      DELIVERY_HANDOVER: ["TƏHVİL-TƏSLİM AKTI", "TƏHVİL TƏSLİM AKTI"],
+      PRICE_AGREEMENT: ["QİYMƏT RAZILAŞMA PROTOKOLU", "Qiymət razılaşma pratokolu"],
+    };
+    if (legacyTitles[type]?.includes(String(saved.title || "").trim())) draft.title = base.title;
     if (type === "INVOICE") Object.keys(AZPLOM).forEach(key => { if (!String(draft[key] ?? "").trim()) draft[key] = AZPLOM[key]; });
     return structuredClone(draft);
   };
@@ -165,15 +171,16 @@
   }
   const excelDate = value => Math.round((Date.parse(`${value || today()}T00:00:00Z`) - Date.UTC(1899, 11, 30)) / 86400000);
   const replaceCell = (sheet, reference, value, numeric = false) => {
-    const expression = new RegExp(`<c\\b([^>]*\\br="${reference}"[^>]*)>([\\s\\S]*?)<\\/c>`);
+    const expression = new RegExp(`<c\\b([^>]*\\br="${reference}"[^>]*?)(?:\\s*\\/\\s*>|>([\\s\\S]*?)<\\/c>)`);
     return sheet.replace(expression, (_, attributes) => {
-      const cleaned = attributes.replace(/\s+t="[^"]*"/g, "");
+      const cleaned = attributes.replace(/\s+t="[^"]*"/g, "").replace(/\s*\/\s*$/, "");
       return numeric
         ? `<c${cleaned}><v>${value === "" ? "" : number(value)}</v></c>`
         : `<c${cleaned} t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
     });
   };
   const shiftReferences = (value, startRow, amount) => value.replace(/([A-Z]+)(\d+)/g, (_, column, rawRow) => `${column}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}`);
+  const shiftRowNumbers = (value, startRow, amount) => value.replace(/(<row\\b[^>]*\\br=")(\d+)(")/g, (_, before, rawRow, after) => `${before}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}${after}`);
   const expandTemplateRows = (sheet, firstRow, extraRows) => {
     if (!extraRows) return sheet;
     const lastTemplateRow = firstRow + 3, nextRow = lastTemplateRow + 1;
@@ -181,14 +188,28 @@
     if (!source) return sheet;
     // Keep every existing formula, merge and lower signature/bank block in the
     // original template, then clone its final styled product row as needed.
-    sheet = shiftReferences(sheet, nextRow, extraRows);
-    const clones = Array.from({ length: extraRows }, (_, index) => shiftReferences(source[0], nextRow, index + 1)).join("");
+    sheet = shiftRowNumbers(shiftReferences(sheet, nextRow, extraRows), nextRow, extraRows);
+    const clones = Array.from({ length: extraRows }, (_, index) => {
+      const row = lastTemplateRow + index + 1;
+      return shiftReferences(source[0], lastTemplateRow, index + 1).replace(`<row r="${lastTemplateRow}"`, `<row r="${row}"`);
+    }).join("");
     sheet = sheet.replace(source[0], `${source[0]}${clones}`);
     const merge = `B${lastTemplateRow}:C${lastTemplateRow}`;
     const extraMerges = Array.from({ length: extraRows }, (_, index) => `<mergeCell ref="B${nextRow + index}:C${nextRow + index}"/>`).join("");
     sheet = sheet.replace(/<mergeCells count="(\d+)">/, (_, count) => `<mergeCells count="${Number(count) + extraRows}">`);
     sheet = sheet.replace(`<mergeCell ref="${merge}"/>`, `<mergeCell ref="${merge}"/>${extraMerges}`);
     return sheet;
+  };
+  // The supplied templates keep the logo, signature and seal as native Excel
+  // drawing objects.  When product rows are added, move only the drawings
+  // below the product table so the signature area retains the template layout.
+  const shiftDrawingRows = (drawing, firstShiftedRow, amount) => {
+    if (!amount) return drawing;
+    const firstShiftedIndex = firstShiftedRow - 1;
+    return drawing.replace(/(<xdr:(?:from|to)>[\s\S]*?<xdr:row>)(\d+)(<\/xdr:row>)/g, (_, before, rawRow, after) => {
+      const row = Number(rawRow);
+      return `${before}${row >= firstShiftedIndex ? row + amount : row}${after}`;
+    });
   };
   async function downloadXlsx(draft, requestId) {
     if (!window.JSZip) throw new Error("Excel şablonu hələ yüklənməyib. Səhifəni yeniləyib yenidən cəhd edin.");
@@ -208,12 +229,21 @@
       text("A9", draft.city); numeric("G9", excelDate(draft.date)); text(draft.type === "DELIVERY_HANDOVER" ? "A11" : "B11", `${draft.title} №${draft.number}`); text("A13", draft.intro);
       const partyRow = (draft.type === "DELIVERY_HANDOVER" ? 28 : 30) + extraRows; text(`A${partyRow}`, draft.buyer); text(`E${partyRow}`, draft.seller);
     }
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < lineCount; index += 1) {
       const item = draft.items[index] || { name: "", unit: "", quantity: "", price: "" }, row = itemStart + index;
       numeric(`A${row}`, index < draft.items.length ? index + 1 : ""); text(`B${row}`, item.name); text(`D${row}`, item.unit); numeric(`E${row}`, item.quantity); numeric(`F${row}`, item.price); numeric(`G${row}`, number(item.quantity) * number(item.price));
     }
     const totalRow = itemStart + lineCount; numeric(`G${totalRow}`, sum.subtotal); numeric(`G${totalRow + 1}`, sum.vat); numeric(`G${totalRow + 2}`, sum.total);
     workbook.file("xl/worksheets/sheet1.xml", sheet);
+    if (extraRows) {
+      const firstLowerRow = itemStart + 4;
+      await Promise.all(Object.keys(workbook.files)
+        .filter(name => /^xl\/drawings\/drawing\d+\.xml$/.test(name))
+        .map(async name => {
+          const drawing = await workbook.file(name).async("string");
+          workbook.file(name, shiftDrawingRows(drawing, firstLowerRow, extraRows));
+        }));
+    }
     const blob = await workbook.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }), link = document.createElement("a");
     link.href = URL.createObjectURL(blob); link.download = `${TYPES[draft.type].short}-${requestId}.xlsx`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     window.toast?.(`${TYPES[draft.type].label} göndərdiyiniz Excel şablonunda hazırlandı.`);
