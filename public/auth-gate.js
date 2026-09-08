@@ -17,8 +17,8 @@
       const requestId = match ? decodeURIComponent(match[1]) : "";
       const exists = requestId && Array.isArray(db?.requests) && db.requests.some((request) => request.id === requestId);
       const isViewingRequest = typeof page !== "undefined" && page === "request-detail" && Boolean(document.querySelector("#backRequests"));
-      if (exists && isViewingRequest && typeof window.openDetail === "function") {
-        window.openDetail(requestId);
+      if (exists && isViewingRequest && typeof window.openRequestWorkspace === "function") {
+        window.openRequestWorkspace(requestId);
         return;
       }
       if (typeof render === "function") render();
