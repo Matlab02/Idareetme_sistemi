@@ -31,6 +31,22 @@
   const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
   const money = value => new Intl.NumberFormat("az-AZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(number(value));
   const today = () => new Date().toISOString().slice(0, 10);
+  // The request pricing table is the single source of truth for every official
+  // document. Keeping this mapping in one place prevents an old document
+  // draft from exporting an earlier sales price.
+  const requestDocumentItems = request => (request.items || []).map(item => ({
+    name: item.name || "",
+    unit: item.unit || "ədəd",
+    quantity: number(item.qty),
+    price: number(item.sale),
+  }));
+  const syncOfficialDocumentItems = request => {
+    if (!request?.officeDocuments) return;
+    const items = requestDocumentItems(request);
+    Object.values(request.officeDocuments).forEach(draft => {
+      if (draft && typeof draft === "object") draft.items = structuredClone(items);
+    });
+  };
   const defaultDocument = (request, type) => ({
     type,
     city: "Bakı şəhəri",
@@ -54,7 +70,7 @@
     iban: AZPLOM.iban,
     swift: AZPLOM.swift,
     vatRate: VAT,
-    items: (request.items || []).map(item => ({ name: item.name || "", unit: item.unit || "ədəd", quantity: number(item.qty), price: number(item.sale) })),
+    items: requestDocumentItems(request),
   });
   const getDraft = (request, type) => {
     const base = defaultDocument(request, type), saved = request.officeDocuments?.[type];
@@ -66,6 +82,9 @@
       PRICE_AGREEMENT: ["QİYMƏT RAZILAŞMA PROTOKOLU", "Qiymət razılaşma pratokolu"],
     };
     if (legacyTitles[type]?.includes(String(saved.title || "").trim())) draft.title = base.title;
+    // Older saved documents may not have had party values. Restore the
+    // template defaults so buyer/seller blocks never export empty.
+    ["buyer", "seller"].forEach(key => { if (!String(draft[key] ?? "").trim()) draft[key] = base[key]; });
     if (type === "INVOICE") Object.keys(AZPLOM).forEach(key => { if (!String(draft[key] ?? "").trim()) draft[key] = AZPLOM[key]; });
     return structuredClone(draft);
   };
@@ -308,6 +327,7 @@
   }
   window.addEventListener("load", () => {
     window.openOfficialDocument = renderEditor;
+    window.syncOfficialDocumentItems = syncOfficialDocumentItems;
     const root = document.querySelector("#root");
     if (!root || root.dataset.officialDocumentObserver) return;
     root.dataset.officialDocumentObserver = "1";
