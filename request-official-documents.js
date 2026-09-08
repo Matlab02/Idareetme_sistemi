@@ -7,6 +7,11 @@
     DELIVERY_HANDOVER: { label: "Təhvil-təslim aktı", title: "TƏHVİL-TƏSLİM AKTI", short: "TT" },
     PRICE_AGREEMENT: { label: "Qiymət razılaşma protokolu", title: "QİYMƏT RAZILAŞMA PROTOKOLU", short: "QRP" },
   };
+  const TEMPLATES = {
+    INVOICE: "templates/HF-yeni.xlsx",
+    DELIVERY_HANDOVER: "templates/TT-yeni.xlsx",
+    PRICE_AGREEMENT: "templates/QRP-yeni.xlsx",
+  };
   const esc = value => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" }[character]));
   const xml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&apos;", '"': "&quot;" }[character]));
   const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -90,7 +95,7 @@
     document.querySelector("#officeBack").onclick = () => { page = "request-detail"; window.openRequestWorkspace?.(request.id); };
     document.querySelectorAll("[data-document-type]").forEach(button => button.onclick = () => { saveDraft(request, readEditor(type), false); renderEditor(request, button.dataset.documentType); });
     document.querySelector("#officeSave").onclick = () => saveDraft(request, readEditor(type));
-    document.querySelector("#officeDownload").onclick = () => { const draft = readEditor(type); saveDraft(request, draft, false); downloadXlsx(draft, request.id); window.toast?.(`${TYPES[type].label} Excel faylı hazırlandı.`); };
+    document.querySelector("#officeDownload").onclick = async () => { const draft = readEditor(type); saveDraft(request, draft, false); await downloadXlsx(draft, request.id); };
     document.querySelector("#officeAddRow").onclick = () => { const draft = readEditor(type); draft.items.push({ name: "", unit: "ədəd", quantity: 0, price: 0 }); renderEditor(request, type); };
     document.querySelector("#officeItems").addEventListener("input", () => refreshTotals(type));
     document.querySelector("#officeSheet").addEventListener("input", event => { if (event.target.matches('[data-field="vatRate"]')) refreshTotals(type); });
@@ -116,13 +121,68 @@
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols><col min="1" max="1" width="8"/><col min="2" max="2" width="35"/><col min="3" max="3" width="9"/><col min="4" max="4" width="14"/><col min="5" max="5" width="13"/><col min="6" max="6" width="17"/><col min="7" max="7" width="18"/></cols><sheetData>${rows.join("")}</sheetData><mergeCells count="${merges.length}">${merges.map(range => `<mergeCell ref="${range}"/>`).join("")}</mergeCells></worksheet>`;
   }
   const xlsxStyles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="4"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Arial"/></font><font><b/><sz val="16"/><color rgb="FF173D73"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF173D73"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs></styleSheet>`;
-  function downloadXlsx(draft, requestId) {
+  function downloadFallbackXlsx(draft, requestId) {
     const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><calcPr calcMode="auto"/><sheets><sheet name="${xml(TYPES[draft.type].label)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
     const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
     const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
     const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
     const blob = zip([["[Content_Types].xml", contentTypes], ["_rels/.rels", rels], ["xl/workbook.xml", workbook], ["xl/_rels/workbook.xml.rels", workbookRels], ["xl/styles.xml", xlsxStyles], ["xl/worksheets/sheet1.xml", xlsxWorksheet(draft)]]), link = document.createElement("a");
     link.href = URL.createObjectURL(blob); link.download = `${TYPES[draft.type].short}-${requestId}.xlsx`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+  const excelDate = value => Math.round((Date.parse(`${value || today()}T00:00:00Z`) - Date.UTC(1899, 11, 30)) / 86400000);
+  const replaceCell = (sheet, reference, value, numeric = false) => {
+    const expression = new RegExp(`<c\\b([^>]*\\br="${reference}"[^>]*)>([\\s\\S]*?)<\\/c>`);
+    return sheet.replace(expression, (_, attributes) => {
+      const cleaned = attributes.replace(/\s+t="[^"]*"/g, "");
+      return numeric
+        ? `<c${cleaned}><v>${value === "" ? "" : number(value)}</v></c>`
+        : `<c${cleaned} t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
+    });
+  };
+  const shiftReferences = (value, startRow, amount) => value.replace(/([A-Z]+)(\d+)/g, (_, column, rawRow) => `${column}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}`);
+  const expandTemplateRows = (sheet, firstRow, extraRows) => {
+    if (!extraRows) return sheet;
+    const lastTemplateRow = firstRow + 3, nextRow = lastTemplateRow + 1;
+    const source = sheet.match(new RegExp(`<row r="${lastTemplateRow}"[\\s\\S]*?<\\/row>`));
+    if (!source) return sheet;
+    // Keep every existing formula, merge and lower signature/bank block in the
+    // original template, then clone its final styled product row as needed.
+    sheet = shiftReferences(sheet, nextRow, extraRows);
+    const clones = Array.from({ length: extraRows }, (_, index) => shiftReferences(source[0], nextRow, index + 1)).join("");
+    sheet = sheet.replace(source[0], `${source[0]}${clones}`);
+    const merge = `B${lastTemplateRow}:C${lastTemplateRow}`;
+    const extraMerges = Array.from({ length: extraRows }, (_, index) => `<mergeCell ref="B${nextRow + index}:C${nextRow + index}"/>`).join("");
+    sheet = sheet.replace(/<mergeCells count="(\d+)">/, (_, count) => `<mergeCells count="${Number(count) + extraRows}">`);
+    sheet = sheet.replace(`<mergeCell ref="${merge}"/>`, `<mergeCell ref="${merge}"/>${extraMerges}`);
+    return sheet;
+  };
+  async function downloadXlsx(draft, requestId) {
+    if (!window.JSZip) { downloadFallbackXlsx(draft, requestId); return; }
+    const response = await fetch(TEMPLATES[draft.type], { cache: "no-store" });
+    if (!response.ok) { window.toast?.("Excel şablonu yüklənmədi."); return; }
+    const workbook = await window.JSZip.loadAsync(await response.arrayBuffer());
+    const sheetFile = workbook.file("xl/worksheets/sheet1.xml");
+    if (!sheetFile) { window.toast?.("Excel şablonunda əsas səhifə tapılmadı."); return; }
+    const itemStart = draft.type === "INVOICE" ? 19 : 17, lineCount = Math.max(4, draft.items.length), extraRows = lineCount - 4;
+    let sheet = expandTemplateRows(await sheetFile.async("string"), itemStart, extraRows), sum = totals(draft);
+    const text = (cell, value) => { sheet = replaceCell(sheet, cell, value); };
+    const numeric = (cell, value) => { sheet = replaceCell(sheet, cell, value, true); };
+    if (draft.type === "INVOICE") {
+      text("A9", draft.city); numeric("F9", excelDate(draft.date)); text("A12", draft.title); text("B14", draft.seller); text("F14", draft.buyer); text("B15", draft.sellerAddress); text("F15", draft.buyerAddress); text("B16", draft.sellerPhone); text("F16", draft.buyerPhone);
+      const bankRow = 27 + extraRows; text(`C${bankRow}`, draft.beneficiary); text(`C${bankRow + 1}`, draft.taxId); text(`C${bankRow + 2}`, draft.account); text(`C${bankRow + 3}`, draft.bank); text(`C${bankRow + 4}`, draft.bankTaxId); text(`C${bankRow + 5}`, draft.bankCode); text(`C${bankRow + 7}`, draft.iban); text(`C${bankRow + 8}`, draft.swift);
+    } else {
+      text("A9", draft.city); numeric("G9", excelDate(draft.date)); text(draft.type === "DELIVERY_HANDOVER" ? "A11" : "B11", `${draft.title} №${draft.number}`); text("A13", draft.intro);
+      const partyRow = (draft.type === "DELIVERY_HANDOVER" ? 28 : 30) + extraRows; text(`A${partyRow}`, draft.buyer); text(`E${partyRow}`, draft.seller);
+    }
+    for (let index = 0; index < 4; index += 1) {
+      const item = draft.items[index] || { name: "", unit: "", quantity: "", price: "" }, row = itemStart + index;
+      numeric(`A${row}`, index < draft.items.length ? index + 1 : ""); text(`B${row}`, item.name); text(`D${row}`, item.unit); numeric(`E${row}`, item.quantity); numeric(`F${row}`, item.price); numeric(`G${row}`, number(item.quantity) * number(item.price));
+    }
+    const totalRow = itemStart + lineCount; numeric(`G${totalRow}`, sum.subtotal); numeric(`G${totalRow + 1}`, sum.vat); numeric(`G${totalRow + 2}`, sum.total);
+    workbook.file("xl/worksheets/sheet1.xml", sheet);
+    const blob = await workbook.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }), link = document.createElement("a");
+    link.href = URL.createObjectURL(blob); link.download = `${TYPES[draft.type].short}-${requestId}.xlsx`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    window.toast?.(`${TYPES[draft.type].label} göndərdiyiniz Excel şablonunda hazırlandı.`);
   }
   function addLauncher() {
     const requestId = document.querySelector("#root .content h1")?.textContent?.trim();
