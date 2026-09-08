@@ -95,7 +95,7 @@
     document.querySelector("#officeBack").onclick = () => { page = "request-detail"; window.openRequestWorkspace?.(request.id); };
     document.querySelectorAll("[data-document-type]").forEach(button => button.onclick = () => { saveDraft(request, readEditor(type), false); renderEditor(request, button.dataset.documentType); });
     document.querySelector("#officeSave").onclick = () => saveDraft(request, readEditor(type));
-    document.querySelector("#officeDownload").onclick = async () => { const draft = readEditor(type); saveDraft(request, draft, false); await downloadXlsx(draft, request.id); };
+    document.querySelector("#officeDownload").onclick = async () => { const draft = readEditor(type); saveDraft(request, draft, false); try { await downloadXlsx(draft, request.id); } catch (error) { window.toast?.(error.message || "Excel faylı hazırlana bilmədi."); } };
     document.querySelector("#officeAddRow").onclick = () => { const draft = readEditor(type); draft.items.push({ name: "", unit: "ədəd", quantity: 0, price: 0 }); renderEditor(request, type); };
     document.querySelector("#officeItems").addEventListener("input", () => refreshTotals(type));
     document.querySelector("#officeSheet").addEventListener("input", event => { if (event.target.matches('[data-field="vatRate"]')) refreshTotals(type); });
@@ -157,7 +157,7 @@
     return sheet;
   };
   async function downloadXlsx(draft, requestId) {
-    if (!window.JSZip) { downloadFallbackXlsx(draft, requestId); return; }
+    if (!window.JSZip) throw new Error("Excel şablonu hələ yüklənməyib. Səhifəni yeniləyib yenidən cəhd edin.");
     const response = await fetch(TEMPLATES[draft.type], { cache: "no-store" });
     if (!response.ok) { window.toast?.("Excel şablonu yüklənmədi."); return; }
     const workbook = await window.JSZip.loadAsync(await response.arrayBuffer());
