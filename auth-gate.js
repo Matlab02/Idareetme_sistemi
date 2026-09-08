@@ -16,7 +16,8 @@
       const match = location.hash.match(/^#request=(.+)$/);
       const requestId = match ? decodeURIComponent(match[1]) : "";
       const exists = requestId && Array.isArray(db?.requests) && db.requests.some((request) => request.id === requestId);
-      if (exists && typeof window.openDetail === "function") {
+      const isViewingRequest = typeof page !== "undefined" && page === "request-detail" && Boolean(document.querySelector("#backRequests"));
+      if (exists && isViewingRequest && typeof window.openDetail === "function") {
         window.openDetail(requestId);
         return;
       }
