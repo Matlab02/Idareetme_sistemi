@@ -284,12 +284,14 @@
     });
   };
   const appendInvoiceParties = (sheet, draft, startRow) => {
-    const text = (reference, value, style = 1) => `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
+    // Keep this block inside the native HF print layout. Appending it after
+    // the last used row made Excel place it outside the first printed page.
+    const text = (reference, value, style = 0) => `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
     const rows = [
-      `<row r="${startRow}">${text(`A${startRow}`, "ALICI")}${text(`E${startRow}`, "SATICI")}</row>`,
+      `<row r="${startRow}" ht="18" customHeight="1">${text(`A${startRow}`, "ALICI", 11)}${text(`E${startRow}`, "SATICI", 11)}</row>`,
       `<row r="${startRow + 1}">${text(`A${startRow + 1}`, draft.buyer)}${text(`E${startRow + 1}`, draft.seller)}</row>`,
-      `<row r="${startRow + 4}">${text(`A${startRow + 4}`, "İmza ________________________")}${text(`E${startRow + 4}`, "İmza ________________________")}</row>`,
-      `<row r="${startRow + 6}">${text(`A${startRow + 6}`, "M.Y.")}${text(`E${startRow + 6}`, "M.Y.")}</row>`,
+      `<row r="${startRow + 6}">${text(`A${startRow + 6}`, "İmza ________________________")}${text(`E${startRow + 6}`, "İmza ________________________")}</row>`,
+      `<row r="${startRow + 9}">${text(`A${startRow + 9}`, "M.Y.")}${text(`E${startRow + 9}`, "M.Y.")}</row>`,
     ].join("");
     const merges = [`A${startRow}:C${startRow}`, `E${startRow}:G${startRow}`, `A${startRow + 1}:C${startRow + 2}`, `E${startRow + 1}:G${startRow + 2}`];
     return sheet
@@ -299,8 +301,10 @@
   };
   const positionInvoiceSignatureDrawings = (drawing, partyStartRow) => drawing.replace(/<xdr:twoCellAnchor[\s\S]*?<\/xdr:twoCellAnchor>/g, anchor => {
     if (!anchor.includes('r:embed="rId2"') && !anchor.includes('r:embed="rId3"')) return anchor;
-    const start = anchor.includes('r:embed="rId2"') ? partyStartRow : partyStartRow + 1;
-    const end = anchor.includes('r:embed="rId2"') ? partyStartRow + 9 : partyStartRow + 6;
+    // Drawing rows are zero based. Place the seller seal and signature over
+    // the actual seller signature field, not next to bank information.
+    const start = anchor.includes('r:embed="rId2"') ? partyStartRow + 2 : partyStartRow + 1;
+    const end = anchor.includes('r:embed="rId2"') ? partyStartRow + 11 : partyStartRow + 7;
     let occurrence = 0;
     return anchor.replace(/<xdr:row>\d+<\/xdr:row>/g, () => `<xdr:row>${occurrence++ % 2 ? end : start}</xdr:row>`);
   });
@@ -327,7 +331,9 @@
       numeric(`A${row}`, index < draft.items.length ? index + 1 : ""); text(`B${row}`, item.name); text(`D${row}`, item.unit); numeric(`E${row}`, item.quantity); numeric(`F${row}`, item.price); numeric(`G${row}`, number(item.quantity) * number(item.price));
     }
     const totalRow = itemStart + lineCount; numeric(`G${totalRow}`, sum.subtotal); numeric(`G${totalRow + 1}`, sum.vat); numeric(`G${totalRow + 2}`, sum.total);
-    const invoicePartyStart = 47 + extraRows;
+    // Rows 42–51 are reserved by the HF template for the buyer/seller block
+    // and remain on the first printed page.
+    const invoicePartyStart = 42 + extraRows;
     if (draft.type === "INVOICE") sheet = appendInvoiceParties(sheet, draft, invoicePartyStart);
     if (draft.type === "PRICE_AGREEMENT") { text(`A${35 + extraRows}`, ""); text(`A${38 + extraRows}`, ""); }
     workbook.file("xl/worksheets/sheet1.xml", sheet);
@@ -338,7 +344,7 @@
         .map(async name => {
           const drawing = await workbook.file(name).async("string");
           const shifted = shiftDrawingRows(drawing, firstLowerRow, extraRows);
-          workbook.file(name, draft.type === "INVOICE" ? positionInvoiceSignatureDrawings(shifted, invoicePartyStart - 1) : shifted);
+          workbook.file(name, draft.type === "INVOICE" ? positionInvoiceSignatureDrawings(shifted, invoicePartyStart) : shifted);
         }));
     }
     const blob = await workbook.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }), link = document.createElement("a");
