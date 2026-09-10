@@ -5,7 +5,7 @@
   const TYPES = {
     INVOICE: { label: "Hesab-faktura", title: "HESAB FAKTURA", short: "HF" },
     DELIVERY_HANDOVER: { label: "Təhvil-təslim aktı", title: "TƏHVİL TƏSLİM AKTI", short: "TT" },
-    PRICE_AGREEMENT: { label: "Qiymət razılaşma protokolu", title: "Qiymət razılaşma pratokolu", short: "QRP" },
+    PRICE_AGREEMENT: { label: "Qiymət razılaşma protokolu", title: "Qiymət razılaşma protokolu", short: "QRP" },
   };
   const TEMPLATES = {
     INVOICE: "templates/HF-yeni.xlsx",
@@ -97,6 +97,9 @@
   };
   const cell = (field, value, className = "") => `<input class="office-cell ${className}" data-field="${field}" value="${esc(value)}">`;
   const textCell = (field, value, className = "") => `<textarea class="office-cell ${className}" data-field="${field}">${esc(value)}</textarea>`;
+  const parties = (draft, type) => type === "PRICE_AGREEMENT"
+    ? `<div class="office-seller-signature"><b>SATICI</b>${cell("seller", draft.seller)}<label class="office-field-label">İmza</label><div>____________________________</div><div class="office-stamp-label">M.Y.</div></div>`
+    : `<div class="office-parties"><div class="office-party"><b>ALICI</b>${cell("buyer", draft.buyer)}<label class="office-field-label">İmza</label><div>____________________________</div><div class="office-stamp-label">M.Y.</div></div><div class="office-party"><b>SATICI</b>${cell("seller", draft.seller)}<label class="office-field-label">İmza</label><div>____________________________</div><div class="office-stamp-label">M.Y.</div></div></div>`;
 
   function style() {
     if (document.querySelector("#official-document-styles")) return;
@@ -138,7 +141,7 @@
       .office-bank .office-cell{height:20px;min-height:0;padding:1px 5px;border-color:#060606;border-radius:0;background:#fff;color:#050505;text-align:center;font:11px/18px Calibri,Arial,sans-serif}
       .office-signature{display:flex;align-items:flex-end;justify-content:center;gap:8px;min-height:135px;margin-top:18px;color:#050505;font:800 10px Calibri,Arial,sans-serif}
       .office-signature img{width:112px;height:112px;object-fit:contain}.office-signature .office-sign-image{width:102px;height:68px;object-fit:contain}
-      .office-parties{grid-template-columns:1fr 1fr;gap:25px;margin-top:52px}.office-party{position:relative;min-height:128px;padding:7px 9px;border:1px solid #060606;color:#050505;font:11px Calibri,Arial,sans-serif}.office-party b{margin-bottom:9px;text-align:center;font-size:12px}.office-party .office-cell{width:100%;min-height:32px;padding:2px 3px;border:0;border-radius:0;border-bottom:1px solid #060606;background:transparent;color:#050505;font:11px Calibri,Arial,sans-serif;box-shadow:none}.office-party .office-field-label{margin:19px 0 3px;color:#050505;font:700 10px Calibri,Arial,sans-serif}.office-party .office-party-stamp{position:absolute;right:2px;bottom:-33px;width:100px;height:100px;object-fit:contain}.office-party .office-party-sign{position:absolute;right:66px;bottom:13px;width:94px;height:58px;object-fit:contain}
+      .office-parties{grid-template-columns:1fr 1fr;gap:25px;margin-top:52px}.office-party,.office-seller-signature{position:relative;min-height:128px;padding:7px 9px;border:1px solid #060606;color:#050505;font:11px Calibri,Arial,sans-serif}.office-party b,.office-seller-signature b{display:block;margin-bottom:9px;text-align:center;font-size:12px}.office-party .office-cell,.office-seller-signature .office-cell{width:100%;min-height:32px;padding:2px 3px;border:0;border-radius:0;border-bottom:1px solid #060606;background:transparent;color:#050505;font:11px Calibri,Arial,sans-serif;box-shadow:none}.office-party .office-field-label,.office-seller-signature .office-field-label{margin:19px 0 3px;color:#050505;font:700 10px Calibri,Arial,sans-serif}.office-stamp-label{margin-top:13px;font:700 10px Calibri,Arial,sans-serif}.office-seller-signature{width:calc(50% - 12px);margin:52px 0 0 auto}.office-party .office-party-stamp,.office-seller-signature .office-party-stamp{position:absolute;right:2px;bottom:-33px;width:100px;height:100px;object-fit:contain}.office-party .office-party-sign,.office-seller-signature .office-party-sign{position:absolute;right:66px;bottom:13px;width:94px;height:58px;object-fit:contain}
       .office-template-DELIVERY_HANDOVER .office-sheet-title,.office-template-PRICE_AGREEMENT .office-sheet-title{margin-top:18px;margin-bottom:7px;font-size:14px;line-height:26px}.office-template-DELIVERY_HANDOVER .office-title-number,.office-template-PRICE_AGREEMENT .office-title-number{margin-top:-39px;font-size:14px;line-height:26px}.office-template-DELIVERY_HANDOVER .office-meta,.office-template-PRICE_AGREEMENT .office-meta{display:none}.office-template-DELIVERY_HANDOVER .office-grid,.office-template-PRICE_AGREEMENT .office-grid{margin-top:8px}.office-template-DELIVERY_HANDOVER .office-totals,.office-template-PRICE_AGREEMENT .office-totals{width:185px}
       .office-cell:focus{outline:2px solid #4b9cda;outline-offset:-2px;background:#fffde8;box-shadow:none!important}.office-cell.area:focus{box-shadow:none!important}
       @media(max-width:900px){.office-sheet-wrap{margin:0 -10px;padding:12px}.office-sheet{transform:none;min-width:794px}.office-doc-top{padding:0 4px}.office-template-brand{right:48px}}
@@ -164,7 +167,7 @@
     const draft = getDraft(request, type), info = TYPES[type], sum = totals(draft);
     page = "official-document";
     window.__officialDocumentType = type;
-    document.querySelector("#root").innerHTML = `<div class="content"><div class="head"><div><button class="secondary" id="officeBack">← Sorğuya qayıt</button><div class="eyebrow" style="margin-top:16px">RƏSMİ SƏNƏD REDAKTORU</div><h1>${info.label}</h1><p>Excel görünüşündə məlumatları dəyişin, sonra sənədi .xlsx formatında endirin.</p></div></div><div class="office-doc-top"><div class="office-doc-tabs">${Object.entries(TYPES).map(([key, item]) => `<button type="button" class="office-doc-tab ${key === type ? "active" : ""}" data-document-type="${key}">${item.label}</button>`).join("")}</div><div class="office-doc-actions"><button type="button" class="secondary" id="officeSave">Yadda saxla</button><button type="button" class="primary" id="officeDownload">↧ Excel endir</button></div></div><div class="office-sheet-wrap"><section class="office-sheet" id="officeSheet"><div class="office-sheet-header"><input class="office-cell" data-field="city" value="${esc(draft.city)}"><input class="office-cell" data-field="date" type="date" value="${esc(draft.date)}"></div><input class="office-cell office-sheet-title" data-field="title" value="${esc(draft.title)}"><div class="office-meta"><span>${type === "INVOICE" ? "SATICI" : "Sənəd №"}</span>${type === "INVOICE" ? cell("seller", draft.seller) : cell("number", draft.number)}<span>${type === "INVOICE" ? "ALICI" : "Tarix"}</span>${type === "INVOICE" ? cell("buyer", draft.buyer) : cell("date", draft.date)}<span>${type === "INVOICE" ? "ÜNVAN" : "ALICI"}</span>${type === "INVOICE" ? cell("sellerAddress", draft.sellerAddress) : cell("buyer", draft.buyer)}<span>${type === "INVOICE" ? "ÜNVAN" : "SATICI"}</span>${type === "INVOICE" ? cell("buyerAddress", draft.buyerAddress) : cell("seller", draft.seller)}<span>${type === "INVOICE" ? "ƏLAQƏ" : "Qeyd"}</span>${type === "INVOICE" ? cell("sellerPhone", draft.sellerPhone) : cell("number", draft.number)}<span>${type === "INVOICE" ? "ƏLAQƏ" : ""}</span>${type === "INVOICE" ? cell("buyerPhone", draft.buyerPhone) : cell("vatRate", draft.vatRate)}</div>${type === "INVOICE" ? "" : textCell("intro", draft.intro, "office-intro")}<table class="office-grid"><thead><tr><th style="width:42px">№</th><th>Malın (iş,xidmət) adı</th><th style="width:104px">Ölçü vahidi</th><th style="width:94px">Miqdarı</th><th style="width:128px">Vahidin qiyməti</th><th style="width:132px">Ümumi dəyəri</th><th style="width:42px"></th></tr></thead><tbody id="officeItems">${itemRows(draft)}</tbody></table><button type="button" class="office-add-row" id="officeAddRow">＋ Sətir əlavə et</button><table class="office-totals"><tbody><tr><td>Cəm</td><td id="officeSubtotal">${money(sum.subtotal)}</td></tr><tr><td>ƏDV (<input class="office-cell" style="width:44px;padding:2px 4px" data-field="vatRate" type="number" min="0" step="0.01" value="${number(draft.vatRate)}">%)</td><td id="officeVat">${money(sum.vat)}</td></tr><tr><td>Yekun</td><td id="officeTotal">${money(sum.total)}</td></tr></tbody></table>${type === "INVOICE" ? `<div class="office-bank"><b>BENEFICIARY</b>${cell("beneficiary", draft.beneficiary)}<b>Company Tax ID</b>${cell("taxId", draft.taxId)}<b>ACCOUNT NUMBER</b>${cell("account", draft.account)}<b>BANK NAME</b>${cell("bank", draft.bank)}<b>Bank Tax ID</b>${cell("bankTaxId", draft.bankTaxId)}<b>Bank Code</b>${cell("bankCode", draft.bankCode)}<b>IBAN NUMBER</b>${cell("iban", draft.iban)}<b>SWIFT CODE</b>${cell("swift", draft.swift)}</div><div class="office-signature">İMZA __________________________</div>` : `<div class="office-parties"><div class="office-party"><b>ALICI</b><input class="office-cell" data-field="buyer" value="${esc(draft.buyer)}"><label class="office-field-label">İmza</label><div>____________________________</div></div><div class="office-party"><b>SATICI</b><input class="office-cell" data-field="seller" value="${esc(draft.seller)}"><label class="office-field-label">İmza</label><div>____________________________</div></div></div>`}</section></div></div>`;
+    document.querySelector("#root").innerHTML = `<div class="content"><div class="head"><div><button class="secondary" id="officeBack">← Sorğuya qayıt</button><div class="eyebrow" style="margin-top:16px">RƏSMİ SƏNƏD REDAKTORU</div><h1>${info.label}</h1><p>Excel görünüşündə məlumatları dəyişin, sonra sənədi .xlsx formatında endirin.</p></div></div><div class="office-doc-top"><div class="office-doc-tabs">${Object.entries(TYPES).map(([key, item]) => `<button type="button" class="office-doc-tab ${key === type ? "active" : ""}" data-document-type="${key}">${item.label}</button>`).join("")}</div><div class="office-doc-actions"><button type="button" class="secondary" id="officeSave">Yadda saxla</button><button type="button" class="primary" id="officeDownload">↧ Excel endir</button></div></div><div class="office-sheet-wrap"><section class="office-sheet" id="officeSheet"><div class="office-sheet-header"><input class="office-cell" data-field="city" value="${esc(draft.city)}"><input class="office-cell" data-field="date" type="date" value="${esc(draft.date)}"></div><input class="office-cell office-sheet-title" data-field="title" value="${esc(draft.title)}"><div class="office-meta"><span>${type === "INVOICE" ? "SATICI" : "Sənəd №"}</span>${type === "INVOICE" ? cell("seller", draft.seller) : cell("number", draft.number)}<span>${type === "INVOICE" ? "ALICI" : "Tarix"}</span>${type === "INVOICE" ? cell("buyer", draft.buyer) : cell("date", draft.date)}<span>${type === "INVOICE" ? "ÜNVAN" : "ALICI"}</span>${type === "INVOICE" ? cell("sellerAddress", draft.sellerAddress) : cell("buyer", draft.buyer)}<span>${type === "INVOICE" ? "ÜNVAN" : "SATICI"}</span>${type === "INVOICE" ? cell("buyerAddress", draft.buyerAddress) : cell("seller", draft.seller)}<span>${type === "INVOICE" ? "ƏLAQƏ" : "Qeyd"}</span>${type === "INVOICE" ? cell("sellerPhone", draft.sellerPhone) : cell("number", draft.number)}<span>${type === "INVOICE" ? "ƏLAQƏ" : ""}</span>${type === "INVOICE" ? cell("buyerPhone", draft.buyerPhone) : cell("vatRate", draft.vatRate)}</div>${type === "INVOICE" ? "" : textCell("intro", draft.intro, "office-intro")}<table class="office-grid"><thead><tr><th style="width:42px">№</th><th>Malın (iş,xidmət) adı</th><th style="width:104px">Ölçü vahidi</th><th style="width:94px">Miqdarı</th><th style="width:128px">Vahidin qiyməti</th><th style="width:132px">Ümumi dəyəri</th><th style="width:42px"></th></tr></thead><tbody id="officeItems">${itemRows(draft)}</tbody></table><button type="button" class="office-add-row" id="officeAddRow">＋ Sətir əlavə et</button><table class="office-totals"><tbody><tr><td>Cəm</td><td id="officeSubtotal">${money(sum.subtotal)}</td></tr><tr><td>ƏDV (<input class="office-cell" style="width:44px;padding:2px 4px" data-field="vatRate" type="number" min="0" step="0.01" value="${number(draft.vatRate)}">%)</td><td id="officeVat">${money(sum.vat)}</td></tr><tr><td>Yekun</td><td id="officeTotal">${money(sum.total)}</td></tr></tbody></table>${type === "INVOICE" ? `<div class="office-bank"><b>BENEFICIARY</b>${cell("beneficiary", draft.beneficiary)}<b>Company Tax ID</b>${cell("taxId", draft.taxId)}<b>ACCOUNT NUMBER</b>${cell("account", draft.account)}<b>BANK NAME</b>${cell("bank", draft.bank)}<b>Bank Tax ID</b>${cell("bankTaxId", draft.bankTaxId)}<b>Bank Code</b>${cell("bankCode", draft.bankCode)}<b>IBAN NUMBER</b>${cell("iban", draft.iban)}<b>SWIFT CODE</b>${cell("swift", draft.swift)}</div>` : ""}${parties(draft, type)}</section></div></div>`;
     const sheet = document.querySelector("#officeSheet");
     sheet.classList.add(`office-template-${type}`);
     const logo = document.createElement("div"); logo.className = "office-template-brand"; logo.innerHTML = '<img src="assets/azplom-logo.jpeg" alt="AzPlom loqosu">'; sheet.prepend(logo);
@@ -172,14 +175,13 @@
     if (type === "INVOICE") {
       const bank = sheet.querySelector(".office-bank");
       bank?.insertAdjacentHTML("beforeend", `<b>BRANCH</b>${cell("branch", draft.branch)}`);
-      const signature = sheet.querySelector(".office-signature");
-      if (signature) signature.innerHTML = '<span>İMZA&nbsp;&nbsp;__________________</span><img class="office-sign-image" src="assets/azplom-signature.png" alt="AzPlom imzası"><img src="assets/azplom-stamp.png" alt="AzPlom möhürü">';
-    } else {
+    }
+    if (type !== "INVOICE") {
       const title = sheet.querySelector(".office-sheet-title");
       if (title) title.value = `${draft.title} №${draft.number}`;
-      const sellerParty = sheet.querySelector(".office-party:last-child");
-      sellerParty?.insertAdjacentHTML("beforeend", '<img class="office-party-sign" src="assets/azplom-signature.png" alt="AzPlom imzası"><img class="office-party-stamp" src="assets/azplom-stamp.png" alt="AzPlom möhürü">');
     }
+    const sellerSignature = sheet.querySelector(type === "PRICE_AGREEMENT" ? ".office-seller-signature" : ".office-party:last-child");
+    sellerSignature?.insertAdjacentHTML("beforeend", '<img class="office-party-sign" src="assets/azplom-signature.png" alt="AzPlom imzası"><img class="office-party-stamp" src="assets/azplom-stamp.png" alt="AzPlom möhürü">');
     bindEditor(request, type);
   }
 
@@ -281,6 +283,27 @@
       return `${before}${row >= firstShiftedIndex ? row + amount : row}${after}`;
     });
   };
+  const appendInvoiceParties = (sheet, draft, startRow) => {
+    const text = (reference, value, style = 1) => `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
+    const rows = [
+      `<row r="${startRow}">${text(`A${startRow}`, "ALICI")}${text(`E${startRow}`, "SATICI")}</row>`,
+      `<row r="${startRow + 1}">${text(`A${startRow + 1}`, draft.buyer)}${text(`E${startRow + 1}`, draft.seller)}</row>`,
+      `<row r="${startRow + 4}">${text(`A${startRow + 4}`, "İmza ________________________")}${text(`E${startRow + 4}`, "İmza ________________________")}</row>`,
+      `<row r="${startRow + 6}">${text(`A${startRow + 6}`, "M.Y.")}${text(`E${startRow + 6}`, "M.Y.")}</row>`,
+    ].join("");
+    const merges = [`A${startRow}:C${startRow}`, `E${startRow}:G${startRow}`, `A${startRow + 1}:C${startRow + 2}`, `E${startRow + 1}:G${startRow + 2}`];
+    return sheet
+      .replace("</sheetData>", `${rows}</sheetData>`)
+      .replace(/<mergeCells count="(\d+)">/, (_, count) => `<mergeCells count="${Number(count) + merges.length}">`)
+      .replace("</mergeCells>", `${merges.map(range => `<mergeCell ref="${range}"/>`).join("")}</mergeCells>`);
+  };
+  const positionInvoiceSignatureDrawings = (drawing, partyStartRow) => drawing.replace(/<xdr:twoCellAnchor[\s\S]*?<\/xdr:twoCellAnchor>/g, anchor => {
+    if (!anchor.includes('r:embed="rId2"') && !anchor.includes('r:embed="rId3"')) return anchor;
+    const start = anchor.includes('r:embed="rId2"') ? partyStartRow : partyStartRow + 1;
+    const end = anchor.includes('r:embed="rId2"') ? partyStartRow + 9 : partyStartRow + 6;
+    let occurrence = 0;
+    return anchor.replace(/<xdr:row>\d+<\/xdr:row>/g, () => `<xdr:row>${occurrence++ % 2 ? end : start}</xdr:row>`);
+  });
   async function downloadXlsx(draft, requestId) {
     if (!window.JSZip) throw new Error("Excel şablonu hələ yüklənməyib. Səhifəni yeniləyib yenidən cəhd edin.");
     const response = await fetch(TEMPLATES[draft.type], { cache: "no-store" });
@@ -304,14 +327,18 @@
       numeric(`A${row}`, index < draft.items.length ? index + 1 : ""); text(`B${row}`, item.name); text(`D${row}`, item.unit); numeric(`E${row}`, item.quantity); numeric(`F${row}`, item.price); numeric(`G${row}`, number(item.quantity) * number(item.price));
     }
     const totalRow = itemStart + lineCount; numeric(`G${totalRow}`, sum.subtotal); numeric(`G${totalRow + 1}`, sum.vat); numeric(`G${totalRow + 2}`, sum.total);
+    const invoicePartyStart = 47 + extraRows;
+    if (draft.type === "INVOICE") sheet = appendInvoiceParties(sheet, draft, invoicePartyStart);
+    if (draft.type === "PRICE_AGREEMENT") { text(`A${35 + extraRows}`, ""); text(`A${38 + extraRows}`, ""); }
     workbook.file("xl/worksheets/sheet1.xml", sheet);
-    if (extraRows) {
+    if (extraRows || draft.type === "INVOICE") {
       const firstLowerRow = itemStart + 4;
       await Promise.all(Object.keys(workbook.files)
         .filter(name => /^xl\/drawings\/drawing\d+\.xml$/.test(name))
         .map(async name => {
           const drawing = await workbook.file(name).async("string");
-          workbook.file(name, shiftDrawingRows(drawing, firstLowerRow, extraRows));
+          const shifted = shiftDrawingRows(drawing, firstLowerRow, extraRows);
+          workbook.file(name, draft.type === "INVOICE" ? positionInvoiceSignatureDrawings(shifted, invoicePartyStart - 1) : shifted);
         }));
     }
     const blob = await workbook.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }), link = document.createElement("a");
