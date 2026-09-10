@@ -18,6 +18,26 @@
   function sessionUsername() {
     try { return JSON.parse(sessionStorage.getItem("erp-auth-session") || "null")?.username || "İstifadəçi"; } catch { return "İstifadəçi"; }
   }
+  const documentHydration = new Map();
+  const documentSignature = documents => (documents || []).map(item => `${item.type}:${item.documentId || ""}:${item.filename || ""}:${item.uploadedAt || ""}`).sort().join("|");
+  const activeRequestId = () => document.querySelector("#root .content h1")?.textContent?.trim() || "";
+  async function hydrateRequestDocuments(request) {
+    if (!request?.id || documentHydration.has(request.id)) return documentHydration.get(request.id) || false;
+    let session; try { session = JSON.parse(sessionStorage.getItem("erp-auth-session") || "null"); } catch {}
+    if (!session?.token) return false;
+    const task = fetch(`api/request-document.php?requestId=${encodeURIComponent(request.id)}`, { headers: { Authorization: `Bearer ${session.token}` }, cache: "no-store" })
+      .then(async response => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !Array.isArray(payload?.documents)) return false;
+        const changed = documentSignature(request.documents) !== documentSignature(payload.documents);
+        request.documents = payload.documents;
+        return changed;
+      })
+      .catch(() => false)
+      .finally(() => documentHydration.delete(request.id));
+    documentHydration.set(request.id, task);
+    return task;
+  }
   function softDeleteRequest(request) {
     let records = [];
     try { records = db.requests || []; } catch { return false; }
@@ -123,25 +143,34 @@
     }
   }
   function addPanel(request) {
-    styles(); const mainPanel = document.querySelector(".detail-prices")?.closest(".panel"); if (!mainPanel || document.querySelector(".documents-panel")) return;
+    styles();
+    void hydrateRequestDocuments(request).then(changed => {
+      if (!changed || activeRequestId() !== request.id) return;
+      if (document.querySelector(".documents-panel.document-upload-busy")) return;
+      document.querySelector(".documents-panel")?.remove();
+      addPanel(request);
+    });
+    const mainPanel = document.querySelector(".detail-prices")?.closest(".panel"); if (!mainPanel || document.querySelector(".documents-panel")) return;
     request.documents ||= [];
     const panel = document.createElement("section"); panel.className = "panel documents-panel"; panel.innerHTML = `<div class="documents-head"><div><h2>Sənədlər</h2><p>Bu sorğu üzrə sənədləri istənilən statusda əlavə edə, dəyişə və silə bilərsiniz.</p></div><span class="badge">3 sənəd tələb olunur</span></div><div class="document-grid">${required.map((doc) => { const saved = request.documents.find((item) => item.type === doc.type); return `<div class="document-card ${saved ? "ready" : ""}" data-doc-card="${doc.type}"><b>${doc.title}</b><small>${doc.hint}</small><input id="doc-${doc.type}" class="required-document" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" data-doc-type="${doc.type}">${saved ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label for="doc-${doc.type}">↻ Dəyiş</label><button type="button" class="document-remove" data-doc-type="${doc.type}" style="border:1px solid #f2c8d0;background:#fff7f8;color:#c23b51;border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Sil</button></div><span class="file-name">✓ ${esc(saved.filename)}</span>` : `<label for="doc-${doc.type}">＋ Sənəd əlavə et</label><span class="muted">PDF, Word, Excel və şəkil</span>`}</div>`; }).join("")}</div><div class="doc-progress"><strong>${request.documents.length}/3</strong> sənəd əlavə olunub. ${request.documents.length === 3 ? "Sorğu tamamlanmağa hazırdır." : "Çatışmayan sənədləri əlavə edin."}</div>`;
     mainPanel.after(panel);
-    panel.querySelectorAll(".required-document").forEach((input) => input.onchange = () => { const file = input.files?.[0]; if (!file) return; request.documents = (request.documents || []).filter((item) => item.type !== input.dataset.docType); request.documents.push({ type: input.dataset.docType, filename: file.name, mimeType: file.type, size: file.size, uploadedAt: new Date().toISOString() }); audit("UPLOAD", `${request.id}:${input.dataset.docType}`); save(); panel.remove(); addPanel(request); toast(`${file.name} sənədlərə əlavə edildi`); });
     panel.querySelectorAll(".required-document").forEach((input) => input.onchange = async () => {
       const file = input.files?.[0]; if (!file) return;
       const current = (request.documents || []).find((item) => item.type === input.dataset.docType);
       let session; try { session = JSON.parse(sessionStorage.getItem("erp-auth-session") || "null"); } catch {}
       if (!session?.token) { input.value = ""; return toast("Sənəd yükləmək üçün sistemə yenidən daxil olun."); }
       const form = new FormData(); form.append("requestId", request.id); form.append("type", input.dataset.docType); form.append("file", file); if (current?.documentId) form.append("replaceDocumentId", current.documentId);
+      panel.classList.add("document-upload-busy");
+      panel.querySelectorAll("input,button,label").forEach(control => { control.style.pointerEvents = "none"; });
       try {
         const response = await fetch("api/request-document.php", { method: "POST", headers: { Authorization: `Bearer ${session.token}` }, body: form });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload?.document) throw new Error(payload?.error || "Sənəd serverə yüklənmədi.");
         request.documents = (request.documents || []).filter((item) => item.type !== input.dataset.docType);
         request.documents.push({ type: input.dataset.docType, ...payload.document });
-        audit("UPLOAD", `${request.id}:${input.dataset.docType}`); save(); panel.remove(); addPanel(request); toast(`${file.name} sənədlərə əlavə edildi`);
+        audit("UPLOAD", `${request.id}:${input.dataset.docType}`); save(); panel.remove(); addPanel(request); toast(`${file.name} bazada saxlanıldı.`);
       } catch (error) { input.value = ""; toast(error.message || "Sənəd yüklənmədi."); }
+      finally { panel.classList.remove("document-upload-busy"); panel.querySelectorAll("input,button,label").forEach(control => { control.style.pointerEvents = ""; }); }
     });
     panel.querySelectorAll(".document-card").forEach((card) => {
       const type = card.dataset.docCard, saved = (request.documents || []).find((item) => item.type === type);

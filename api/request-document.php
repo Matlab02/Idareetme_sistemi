@@ -30,6 +30,20 @@ $create = "CREATE TABLE IF NOT EXISTS erp_request_documents (
 if (!$conn->query($create)) requestDocumentJson(['ok' => false, 'error' => 'Sənəd cədvəli hazırlana bilmədi.'], 500);
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $requestId = (string) ($_GET['requestId'] ?? '');
+    if ($requestId !== '') {
+        if (!preg_match('/^[A-Za-z0-9_-]{3,80}$/', $requestId)) requestDocumentJson(['ok' => false, 'error' => 'Sorğu açarı düzgün deyil.'], 400);
+        $statement = $conn->prepare('SELECT id, document_type, filename, mime_type, size_bytes, uploaded_at FROM erp_request_documents WHERE request_id = ? ORDER BY uploaded_at ASC, id ASC');
+        if (!$statement) requestDocumentJson(['ok' => false, 'error' => 'Sənəd siyahısı hazırlana bilmədi.'], 500);
+        $statement->bind_param('s', $requestId); $statement->execute(); $result = $statement->get_result(); $documents = [];
+        while ($row = $result?->fetch_assoc()) {
+            $document = ['type' => $row['document_type'], 'documentId' => $row['id'], 'filename' => $row['filename'], 'mimeType' => $row['mime_type'], 'size' => (int) $row['size_bytes'], 'uploadedAt' => $row['uploaded_at']];
+            if ($document['type'] === 'ADDITIONAL') $documents[] = $document;
+            else $documents[$document['type']] = $document;
+        }
+        $statement->close();
+        requestDocumentJson(['ok' => true, 'documents' => array_values($documents)]);
+    }
     $id = (string) ($_GET['id'] ?? '');
     if (!preg_match('/^[a-f0-9]{32}$/', $id)) requestDocumentJson(['ok' => false, 'error' => 'Sənəd açarı düzgün deyil.'], 400);
     $statement = $conn->prepare('SELECT filename, mime_type, size_bytes, file_blob FROM erp_request_documents WHERE id = ? LIMIT 1');
@@ -80,5 +94,11 @@ if (!$statement->execute()) { $statement->close(); requestDocumentJson(['ok' => 
 $statement->close();
 
 $replaceDocumentId = (string) ($_POST['replaceDocumentId'] ?? '');
-if (preg_match('/^[a-f0-9]{32}$/', $replaceDocumentId)) { $remove = $conn->prepare('DELETE FROM erp_request_documents WHERE id = ?'); if ($remove) { $remove->bind_param('s', $replaceDocumentId); $remove->execute(); $remove->close(); } }
+if ($type !== 'ADDITIONAL') {
+    $remove = $conn->prepare('DELETE FROM erp_request_documents WHERE request_id = ? AND document_type = ? AND id <> ?');
+    if ($remove) { $remove->bind_param('sss', $requestId, $type, $id); $remove->execute(); $remove->close(); }
+} elseif (preg_match('/^[a-f0-9]{32}$/', $replaceDocumentId)) {
+    $remove = $conn->prepare('DELETE FROM erp_request_documents WHERE id = ? AND request_id = ?');
+    if ($remove) { $remove->bind_param('ss', $replaceDocumentId, $requestId); $remove->execute(); $remove->close(); }
+}
 requestDocumentJson(['ok' => true, 'document' => ['documentId' => $id, 'filename' => $filename, 'mimeType' => $mime, 'size' => $size, 'uploadedAt' => date('c')]]);

@@ -37,6 +37,13 @@
         if (data?.state && typeof db !== "undefined") {
           const nextVersion = String(data.updatedAt || "");
           if (nextVersion && nextVersion === latestState) return { ok: true, unchanged: true };
+          // A native file picker temporarily moves focus away from the page.
+          // Do not hydrate over an open request workspace at that moment: it
+          // would rebuild the form before its change event can save the file.
+          // The next list/detail visit refreshes the shared state safely.
+          const editingRequest = typeof page !== "undefined" && page === "request-detail" && Boolean(document.querySelector("#backRequests"));
+          const editingOfficialDocument = typeof page !== "undefined" && page === "official-document";
+          if (editingRequest || editingOfficialDocument) return { ok: true, deferred: true };
           db = data.state;
           window.db = db;
           latestState = nextVersion;
