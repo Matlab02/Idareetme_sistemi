@@ -258,7 +258,7 @@
     });
   };
   const shiftReferences = (value, startRow, amount) => value.replace(/([A-Z]+)(\d+)/g, (_, column, rawRow) => `${column}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}`);
-  const shiftRowNumbers = (value, startRow, amount) => value.replace(/(<row\\b[^>]*\\br=")(\d+)(")/g, (_, before, rawRow, after) => `${before}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}${after}`);
+  const shiftRowNumbers = (value, startRow, amount) => value.replace(/(<row\b[^>]*\br=")(\d+)(")/g, (_, before, rawRow, after) => `${before}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}${after}`);
   const expandTemplateRows = (sheet, firstRow, templateRows, extraRows) => {
     if (!extraRows) return sheet;
     const lastTemplateRow = firstRow + templateRows - 1, nextRow = lastTemplateRow + 1;
