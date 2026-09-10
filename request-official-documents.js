@@ -12,6 +12,14 @@
     DELIVERY_HANDOVER: "templates/TT-yeni.xlsx",
     PRICE_AGREEMENT: "templates/QRP-yeni.xlsx",
   };
+  // The customer-supplied Excel files are the contract for official documents.
+  // Their layout, fixed details, signatures and seals must be kept untouched.
+  // Only product names and the buyer field are dynamic.
+  const TEMPLATE_LAYOUTS = {
+    INVOICE: { itemStart: 19, templateRows: 1, buyerColumn: "F", buyerRow: 14 },
+    DELIVERY_HANDOVER: { itemStart: 17, templateRows: 16, buyerColumn: "A", buyerRow: 43 },
+    PRICE_AGREEMENT: { itemStart: 17, templateRows: 4, buyerColumn: "A", buyerRow: 26 },
+  };
   const AZPLOM = {
     seller: "AZPLOM MMC",
     sellerAddress: "Bakı ş., R. Rüstəmov küç., ev 6",
@@ -253,9 +261,9 @@
   };
   const shiftReferences = (value, startRow, amount) => value.replace(/([A-Z]+)(\d+)/g, (_, column, rawRow) => `${column}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}`);
   const shiftRowNumbers = (value, startRow, amount) => value.replace(/(<row\\b[^>]*\\br=")(\d+)(")/g, (_, before, rawRow, after) => `${before}${Number(rawRow) >= startRow ? Number(rawRow) + amount : rawRow}${after}`);
-  const expandTemplateRows = (sheet, firstRow, extraRows) => {
+  const expandTemplateRows = (sheet, firstRow, templateRows, extraRows) => {
     if (!extraRows) return sheet;
-    const lastTemplateRow = firstRow + 3, nextRow = lastTemplateRow + 1;
+    const lastTemplateRow = firstRow + templateRows - 1, nextRow = lastTemplateRow + 1;
     const source = sheet.match(new RegExp(`<row r="${lastTemplateRow}"[\\s\\S]*?<\\/row>`));
     if (!source) return sheet;
     // Keep every existing formula, merge and lower signature/bank block in the
@@ -283,31 +291,6 @@
       return `${before}${row >= firstShiftedIndex ? row + amount : row}${after}`;
     });
   };
-  const appendInvoiceParties = (sheet, draft, startRow) => {
-    // Keep this block inside the native HF print layout. Appending it after
-    // the last used row made Excel place it outside the first printed page.
-    const text = (reference, value, style = 0) => `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
-    const rows = [
-      `<row r="${startRow}" ht="18" customHeight="1">${text(`A${startRow}`, "ALICI", 11)}${text(`E${startRow}`, "SATICI", 11)}</row>`,
-      `<row r="${startRow + 1}">${text(`A${startRow + 1}`, draft.buyer)}${text(`E${startRow + 1}`, draft.seller)}</row>`,
-      `<row r="${startRow + 6}">${text(`A${startRow + 6}`, "İmza ________________________")}${text(`E${startRow + 6}`, "İmza ________________________")}</row>`,
-      `<row r="${startRow + 9}">${text(`A${startRow + 9}`, "M.Y.")}${text(`E${startRow + 9}`, "M.Y.")}</row>`,
-    ].join("");
-    const merges = [`A${startRow}:C${startRow}`, `E${startRow}:G${startRow}`, `A${startRow + 1}:C${startRow + 2}`, `E${startRow + 1}:G${startRow + 2}`];
-    return sheet
-      .replace("</sheetData>", `${rows}</sheetData>`)
-      .replace(/<mergeCells count="(\d+)">/, (_, count) => `<mergeCells count="${Number(count) + merges.length}">`)
-      .replace("</mergeCells>", `${merges.map(range => `<mergeCell ref="${range}"/>`).join("")}</mergeCells>`);
-  };
-  const positionInvoiceSignatureDrawings = (drawing, partyStartRow) => drawing.replace(/<xdr:twoCellAnchor[\s\S]*?<\/xdr:twoCellAnchor>/g, anchor => {
-    if (!anchor.includes('r:embed="rId2"') && !anchor.includes('r:embed="rId3"')) return anchor;
-    // Drawing rows are zero based. Place the seller seal and signature over
-    // the actual seller signature field, not next to bank information.
-    const start = anchor.includes('r:embed="rId2"') ? partyStartRow + 2 : partyStartRow + 1;
-    const end = anchor.includes('r:embed="rId2"') ? partyStartRow + 11 : partyStartRow + 7;
-    let occurrence = 0;
-    return anchor.replace(/<xdr:row>\d+<\/xdr:row>/g, () => `<xdr:row>${occurrence++ % 2 ? end : start}</xdr:row>`);
-  });
   async function downloadXlsx(draft, requestId) {
     if (!window.JSZip) throw new Error("Excel şablonu hələ yüklənməyib. Səhifəni yeniləyib yenidən cəhd edin.");
     const response = await fetch(TEMPLATES[draft.type], { cache: "no-store" });
@@ -315,36 +298,25 @@
     const workbook = await window.JSZip.loadAsync(await response.arrayBuffer());
     const sheetFile = workbook.file("xl/worksheets/sheet1.xml");
     if (!sheetFile) { window.toast?.("Excel şablonunda əsas səhifə tapılmadı."); return; }
-    const itemStart = draft.type === "INVOICE" ? 19 : 17, lineCount = Math.max(4, draft.items.length), extraRows = lineCount - 4;
-    let sheet = expandTemplateRows(await sheetFile.async("string"), itemStart, extraRows), sum = totals(draft);
+    const layout = TEMPLATE_LAYOUTS[draft.type], itemStart = layout.itemStart;
+    const lineCount = Math.max(layout.templateRows, draft.items.length), extraRows = lineCount - layout.templateRows;
+    let sheet = expandTemplateRows(await sheetFile.async("string"), itemStart, layout.templateRows, extraRows);
     const text = (cell, value) => { sheet = replaceCell(sheet, cell, value); };
-    const numeric = (cell, value) => { sheet = replaceCell(sheet, cell, value, true); };
-    if (draft.type === "INVOICE") {
-      text("A9", draft.city); numeric("F9", excelDate(draft.date)); text("A12", draft.title); text("B14", draft.seller); text("F14", draft.buyer); text("B15", draft.sellerAddress); text("F15", draft.buyerAddress); text("B16", draft.sellerPhone); text("F16", draft.buyerPhone);
-      const bankRow = 27 + extraRows; text(`C${bankRow}`, draft.beneficiary); text(`C${bankRow + 1}`, draft.taxId); text(`C${bankRow + 2}`, draft.account); text(`C${bankRow + 3}`, draft.bank); text(`C${bankRow + 4}`, draft.bankTaxId); text(`C${bankRow + 5}`, draft.bankCode); text(`C${bankRow + 6}`, draft.branch); text(`C${bankRow + 7}`, draft.iban); text(`C${bankRow + 8}`, draft.swift);
-    } else {
-      text("A9", draft.city); numeric("G9", excelDate(draft.date)); text(draft.type === "DELIVERY_HANDOVER" ? "A11" : "B11", `${draft.title} №${draft.number}`); text("A13", draft.intro);
-      const partyRow = (draft.type === "DELIVERY_HANDOVER" ? 28 : 30) + extraRows; text(`A${partyRow}`, draft.buyer); text(`E${partyRow}`, draft.seller);
-    }
+    const buyerCell = `${layout.buyerColumn}${layout.buyerRow + extraRows}`;
+    text(buyerCell, draft.buyer);
     for (let index = 0; index < lineCount; index += 1) {
-      const item = draft.items[index] || { name: "", unit: "", quantity: "", price: "" }, row = itemStart + index;
-      numeric(`A${row}`, index < draft.items.length ? index + 1 : ""); text(`B${row}`, item.name); text(`D${row}`, item.unit); numeric(`E${row}`, item.quantity); numeric(`F${row}`, item.price); numeric(`G${row}`, number(item.quantity) * number(item.price));
+      const item = draft.items[index], row = itemStart + index;
+      text(`B${row}`, item?.name || "");
     }
-    const totalRow = itemStart + lineCount; numeric(`G${totalRow}`, sum.subtotal); numeric(`G${totalRow + 1}`, sum.vat); numeric(`G${totalRow + 2}`, sum.total);
-    // Rows 42–51 are reserved by the HF template for the buyer/seller block
-    // and remain on the first printed page.
-    const invoicePartyStart = 42 + extraRows;
-    if (draft.type === "INVOICE") sheet = appendInvoiceParties(sheet, draft, invoicePartyStart);
-    if (draft.type === "PRICE_AGREEMENT") { text(`A${35 + extraRows}`, ""); text(`A${38 + extraRows}`, ""); }
     workbook.file("xl/worksheets/sheet1.xml", sheet);
-    if (extraRows || draft.type === "INVOICE") {
-      const firstLowerRow = itemStart + 4;
+    if (extraRows) {
+      const firstLowerRow = itemStart + layout.templateRows;
       await Promise.all(Object.keys(workbook.files)
         .filter(name => /^xl\/drawings\/drawing\d+\.xml$/.test(name))
         .map(async name => {
           const drawing = await workbook.file(name).async("string");
           const shifted = shiftDrawingRows(drawing, firstLowerRow, extraRows);
-          workbook.file(name, draft.type === "INVOICE" ? positionInvoiceSignatureDrawings(shifted, invoicePartyStart) : shifted);
+          workbook.file(name, shifted);
         }));
     }
     const blob = await workbook.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }), link = document.createElement("a");
