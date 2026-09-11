@@ -142,6 +142,38 @@ if ($action === 'create') {
     todoResponse(['ok' => true, 'todos' => fetchVisibleTodos($conn, $actor)]);
 }
 
+if ($action === 'create-batch') {
+    $rawTasks = $payload['tasks'] ?? [];
+    if (!is_array($rawTasks) || !$rawTasks || count($rawTasks) > 50) todoResponse(['error' => '1–50 arası tapşırıq əlavə edin.'], 422);
+    $tasks = [];
+    foreach ($rawTasks as $index => $rawTask) {
+        if (!is_array($rawTask)) todoResponse(['error' => 'Tapşırıq məlumatı düzgün deyil.'], 422);
+        $title = trim((string) ($rawTask['title'] ?? ''));
+        $requestId = trim((string) ($rawTask['requestId'] ?? ''));
+        $priority = trim((string) ($rawTask['priority'] ?? 'Normal'));
+        $note = trim((string) ($rawTask['note'] ?? ''));
+        $dueDate = trim((string) ($rawTask['dueDate'] ?? ''));
+        if ($title === '' || strlen($title) > 880 || strlen($note) > 12000) todoResponse(['error' => ($index + 1) . '. sətirdə tapşırığın adını düzgün yazın.'], 422);
+        if ($dueDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDate)) todoResponse(['error' => ($index + 1) . '. sətirdə son tarix düzgün deyil.'], 422);
+        if (!in_array($priority, ['Təcili', 'Yüksək', 'Normal', 'Aşağı'], true)) $priority = 'Normal';
+        $tasks[] = [$title, $requestId, $priority, $note, $dueDate, normalizeRecipients($conn, $rawTask['recipients'] ?? [])];
+    }
+    if (!$conn->begin_transaction()) todoResponse(['error' => 'Tapşırıqlar üçün əməliyyat başladılmadı.'], 500);
+    $statement = $conn->prepare('INSERT INTO erp_todos (id, title, request_id, recipients_json, priority, due_date, note, status, creator_id, creator_username) VALUES (?, ?, ?, ?, ?, NULLIF(?, ""), ?, "PENDING", ?, ?)');
+    if (!$statement) { $conn->rollback(); todoResponse(['error' => 'Tapşırıqlar yaradıla bilmədi.'], 500); }
+    $creatorId = (int) $actor['id']; $creatorName = (string) $actor['username'];
+    foreach ($tasks as [$title, $requestId, $priority, $note, $dueDate, $recipients]) {
+        $todoId = 'TODO-' . date('Ymd') . '-' . bin2hex(random_bytes(5));
+        $recipientJson = json_encode($recipients, JSON_UNESCAPED_UNICODE);
+        $statement->bind_param('sssssssis', $todoId, $title, $requestId, $recipientJson, $priority, $dueDate, $note, $creatorId, $creatorName);
+        if (!$statement->execute()) { $statement->close(); $conn->rollback(); todoResponse(['error' => 'Tapşırıqlardan biri yaradıla bilmədi.'], 500); }
+        addTodoHistory($conn, $todoId, $actor, 'CREATE', 'PENDING');
+    }
+    $statement->close();
+    if (!$conn->commit()) { $conn->rollback(); todoResponse(['error' => 'Tapşırıqlar yadda saxlanmadı.'], 500); }
+    todoResponse(['ok' => true, 'created' => count($tasks), 'todos' => fetchVisibleTodos($conn, $actor)]);
+}
+
 $todoId = trim((string) ($payload['id'] ?? ''));
 if ($todoId === '') todoResponse(['error' => 'Tapşırıq seçilməyib.'], 422);
 $find = $conn->prepare('SELECT recipients_json, creator_id FROM erp_todos WHERE id = ? LIMIT 1');

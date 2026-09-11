@@ -48,7 +48,7 @@
     const visible = currentTodos();
     const filterHtml = Object.entries(filters).map(([key, label]) => `<button type="button" class="todo-filter ${activeFilter === key ? "active" : ""}" onclick="window.liveTodo.filter('${key}')">${label}<span>${count(key)}</span></button>`).join("");
     const body = loading ? `<div class="todo-empty"><div class="todo-empty-mark">…</div><h2>Tapşırıqlar yenilənir</h2><p>ERP tapşırıqları serverdən alınır.</p></div>` : visible.map(card).join("") || `<div class="todo-empty"><div class="todo-empty-mark">✓</div><h2>Bu statusda tapşırıq yoxdur</h2><p>Yeni tapşırıq yaradın və onu ERP istifadəçisinə göndərin.</p><button type="button" class="primary" onclick="window.liveTodo.open()">＋ Yeni tapşırıq</button></div>`;
-    return shell("To-do", "Yalnız ERP istifadəçiləri üçün tapşırıqlar, cavablar və icra mərhələləri.", `<div class="todo-head-actions"><button type="button" class="secondary" onclick="window.liveTodo.refresh()">↻ Yenilə</button><button type="button" class="primary todo-create" onclick="window.liveTodo.open()">＋ Yeni tapşırıq</button></div>`) + `<section class="todo-summary"><div class="todo-summary-card"><span>Göndərilən</span><strong>${currentStatusCount("pending")}</strong><small>Qəbul gözləyir</small></div><div class="todo-summary-card today"><span>Qəbul edilən</span><strong>${currentStatusCount("accepted")}</strong><small>Sahibi təyin olunub</small></div><div class="todo-summary-card overdue"><span>İcra edilir</span><strong>${currentStatusCount("progress")}</strong><small>İş prosesindədir</small></div><div class="todo-summary-card complete"><span>Tamamlanan</span><strong>${currentStatusCount("completed")}</strong><small>Bağlanmış işlər</small></div></section><section class="todo-workspace"><div class="todo-filterbar" role="group" aria-label="Tapşırıq status filtrləri">${filterHtml}</div><div class="todo-list" aria-live="polite">${body}</div></section></div>`;
+    return shell("To-do", "Yalnız ERP istifadəçiləri üçün tapşırıqlar, cavablar və icra mərhələləri.", `<div class="todo-head-actions"><button type="button" class="secondary" onclick="window.liveTodo.refresh()">↻ Yenilə</button><button type="button" class="secondary todo-batch-trigger" onclick="window.liveTodo.openBatch()">☷ Bir neçə tapşırıq</button><button type="button" class="primary todo-create" onclick="window.liveTodo.open()">＋ Yeni tapşırıq</button></div>`) + `<section class="todo-summary"><div class="todo-summary-card"><span>Göndərilən</span><strong>${currentStatusCount("pending")}</strong><small>Qəbul gözləyir</small></div><div class="todo-summary-card today"><span>Qəbul edilən</span><strong>${currentStatusCount("accepted")}</strong><small>Sahibi təyin olunub</small></div><div class="todo-summary-card overdue"><span>İcra edilir</span><strong>${currentStatusCount("progress")}</strong><small>İş prosesindədir</small></div><div class="todo-summary-card complete"><span>Tamamlanan</span><strong>${currentStatusCount("completed")}</strong><small>Bağlanmış işlər</small></div></section><section class="todo-workspace"><div class="todo-filterbar" role="group" aria-label="Tapşırıq status filtrləri">${filterHtml}</div><div class="todo-list" aria-live="polite">${body}</div></section></div>`;
   }
 
   async function loadDirectory() {
@@ -82,6 +82,35 @@
     try { const data = await api("POST", { action: "create", title: String(values.title).trim(), requestId: String(values.requestId || ""), priority: String(values.priority || "Normal"), dueDate: String(values.dueDate || ""), note: String(values.note || ""), recipients }); todos = data.todos || []; db.todos = todos; closeModal(); render(); toast("Tapşırıq ERP istifadəçilərinə göndərildi."); }
     catch (reason) { error.textContent = reason.message || "Tapşırıq göndərilə bilmədi."; button.disabled = false; button.textContent = "Göndər"; }
   }
+  const requestOptions = () => (db.requests || []).map(request => `<option value="${escText(request.id)}">${escText(request.id)} · ${escText(request.customer)}</option>`).join("");
+  const recipientOptions = () => `<option value="ALL">Bütün ERP istifadəçiləri</option>${directory.map(user => `<option value="${escText(user.username)}">${escText(user.name)} · @${escText(user.username)}</option>`).join("")}`;
+  const batchRow = () => `<tr data-live-batch-row><td><input name="title" maxlength="220" aria-label="Tapşırığın adı" placeholder="Tapşırığı yazın"></td><td><select name="requestId" aria-label="Əlaqəli sorğu"><option value="">Ümumi</option>${requestOptions()}</select></td><td><select name="recipient" aria-label="Alıcı">${recipientOptions()}</select></td><td><select name="priority" aria-label="Prioritet"><option>Təcili</option><option>Yüksək</option><option selected>Normal</option><option>Aşağı</option></select></td><td><input name="dueDate" type="date" aria-label="Son tarix"></td><td><button type="button" class="todo-row-remove" aria-label="Sətiri sil" onclick="window.liveTodo.removeBatchRow(this)">×</button></td></tr>`;
+  function updateBatchCount() {
+    const count = [...document.querySelectorAll("#liveTodoBatchRows input[name=title]")].filter(input => input.value.trim()).length;
+    const button = document.querySelector("#liveTodoBatchSave");
+    if (button) button.textContent = count ? `${count} tapşırığı göndər` : "Tapşırıqları göndər";
+  }
+  async function openBatch() {
+    try { await loadDirectory(); } catch { return toast("ERP istifadəçi siyahısı yüklənmədi."); }
+    modal(`<div class="todo-modal-heading"><span>ERP İŞ PLANI</span><h2>Bir neçə tapşırıq</h2><p>Hər dolu sətir ayrıca tapşırıq kimi yaradılır. Alıcını hər sətirdə ayrıca seçə bilərsiniz.</p></div><form id="liveTodoBatchForm" novalidate><div class="todo-batch-wrap"><table class="todo-batch-table"><thead><tr><th>Tapşırıq</th><th>Sorğu</th><th>Alıcı</th><th>Prioritet</th><th>Son tarix</th><th><span class="sr-only">Sil</span></th></tr></thead><tbody id="liveTodoBatchRows">${batchRow()}${batchRow()}${batchRow()}</tbody></table></div><p id="liveTodoBatchError" class="todo-form-error" role="alert"></p></form><div class="todo-batch-actions"><button type="button" class="secondary" onclick="window.liveTodo.addBatchRow()">＋ Sətir əlavə et</button><div class="actions"><button type="button" class="secondary" onclick="closeModal()">Ləğv et</button><button type="button" class="primary todo-batch-save" id="liveTodoBatchSave" onclick="window.liveTodo.createBatch()">Tapşırıqları göndər</button></div></div>`);
+    document.querySelector("#liveTodoBatchForm")?.addEventListener("input", updateBatchCount);
+    setTimeout(() => document.querySelector("#liveTodoBatchRows input[name=title]")?.focus(), 0);
+  }
+  function addBatchRow() { document.querySelector("#liveTodoBatchRows")?.insertAdjacentHTML("beforeend", batchRow()); updateBatchCount(); }
+  function removeBatchRow(button) {
+    const row = button.closest("[data-live-batch-row]"), rows = document.querySelectorAll("#liveTodoBatchRows [data-live-batch-row]");
+    if (!row) return;
+    if (rows.length === 1) row.querySelectorAll("input").forEach(input => { input.value = ""; }); else row.remove();
+    updateBatchCount();
+  }
+  async function createBatch() {
+    const tasks = [...document.querySelectorAll("#liveTodoBatchRows [data-live-batch-row]")].map(row => ({ title: row.querySelector("[name=title]")?.value.trim() || "", requestId: row.querySelector("[name=requestId]")?.value || "", recipients: [row.querySelector("[name=recipient]")?.value || "ALL"], priority: row.querySelector("[name=priority]")?.value || "Normal", dueDate: row.querySelector("[name=dueDate]")?.value || "" })).filter(task => task.title);
+    const error = document.querySelector("#liveTodoBatchError");
+    if (!tasks.length) { if (error) error.textContent = "Ən azı bir tapşırıq yazın."; document.querySelector("#liveTodoBatchRows input[name=title]")?.focus(); return; }
+    const button = document.querySelector("#liveTodoBatchSave"); button.disabled = true; button.textContent = "Göndərilir…";
+    try { const data = await api("POST", { action: "create-batch", tasks }); todos = data.todos || []; db.todos = todos; closeModal(); render(); toast(`${tasks.length} tapşırıq ERP istifadəçilərinə göndərildi.`); }
+    catch (reason) { if (error) error.textContent = reason.message || "Tapşırıqlar göndərilə bilmədi."; button.disabled = false; updateBatchCount(); }
+  }
   async function changeStatus(id, next) { try { const data = await api("POST", { action: "status", id, status: next }); todos = data.todos || []; db.todos = todos; render(); toast(`${statusMeta[next].label} olaraq qeydə alındı.`); } catch (error) { toast(error.message || "Status yenilənmədi."); } }
   async function remove(id) { const todo = todos.find(item => item.id === id); if (!todo) return; modal(`<div class="todo-delete-dialog"><span>GERİ DÖNÜŞ YOXDUR</span><h2>Tapşırıq silinsin?</h2><p><b>${escText(todo.title)}</b> tapşırığı yalnız siz yaratdığınız üçün silinə bilər.</p></div><div class="actions"><button type="button" class="secondary" id="liveTodoCancel" onclick="closeModal()">Ləğv et</button><button type="button" class="todo-delete-confirm" onclick="window.liveTodo.confirmRemove('${escText(id)}')">Tapşırığı sil</button></div>`); setTimeout(() => document.querySelector("#liveTodoCancel")?.focus(), 0); }
   async function confirmRemove(id) { try { const data = await api("POST", { action: "delete", id }); todos = data.todos || []; db.todos = todos; closeModal(); render(); toast("Tapşırıq silindi."); } catch (error) { toast(error.message || "Tapşırıq silinə bilmədi."); } }
@@ -91,7 +120,7 @@
     if (initialized) return; initialized = true; injectStyles(); const legacyRender = render;
     render = function () { if (page === "todos") { document.querySelector("#root").innerHTML = pageContent(); nav(); document.title = "To-do · AzPlom"; return; } legacyRender(); };
     const navItem = document.querySelector('[data-page="todos"]'); if (navItem) navItem.onclick = () => { page = "todos"; filter = ""; render(); void refresh(); };
-    window.liveTodo = { open, create, status: changeStatus, remove, confirmRemove, refresh, filter: setFilter, allRecipients, singleRecipient };
+    window.liveTodo = { open, create, openBatch, addBatchRow, removeBatchRow, createBatch, status: changeStatus, remove, confirmRemove, refresh, filter: setFilter, allRecipients, singleRecipient };
     void refresh({ paint: false });
     window.addEventListener("erp-session-ready", () => { void refresh(); });
     window.addEventListener("focus", () => { if (page === "todos") void refresh(); });
