@@ -9,6 +9,11 @@
     const token = () => { try { return JSON.parse(sessionStorage.getItem(SESSION) || "null")?.token || ""; } catch { return ""; } };
     const headers = () => { const value = token(); return value ? { Authorization: `Bearer ${value}` } : null; };
     let latestState = "";
+    let persistPending = 0;
+    let persistQueue = Promise.resolve();
+    const stateFingerprint = (state) => {
+      try { return JSON.stringify(state); } catch { return ""; }
+    };
 
     // State refreshes may happen when a native file selector closes.  Keep an
     // already-open request detail view open instead of falling back to Dashboard.
@@ -30,13 +35,14 @@
     const loadState = async () => {
       const currentHeaders = headers();
       if (!currentHeaders) return { ok: false, reason: "NO_SESSION" };
+      if (persistPending) return { ok: true, deferred: true, reason: "PERSIST_PENDING" };
       try {
         const res = await fetch(endpoint, { headers: currentHeaders, cache: "no-store" });
         const data = await res.json();
         if (!res.ok) return { ok: false, error: data?.error || "STATE_LOAD_FAILED" };
         if (data?.state && typeof db !== "undefined") {
-          const nextVersion = String(data.updatedAt || "");
-          if (nextVersion && nextVersion === latestState) return { ok: true, unchanged: true };
+          const nextState = stateFingerprint(data.state);
+          if (nextState && nextState === latestState) return { ok: true, unchanged: true };
           // A native file picker temporarily moves focus away from the page.
           // Do not hydrate over an open request workspace at that moment: it
           // would rebuild the form before its change event can save the file.
@@ -46,7 +52,7 @@
           if (editingRequest || editingOfficialDocument) return { ok: true, deferred: true };
           db = data.state;
           window.db = db;
-          latestState = nextVersion;
+          latestState = nextState;
           localStorage.setItem("erp-prototype-v2", JSON.stringify(db));
           renderCurrentView();
           window.dispatchEvent(new Event("erp-state-loaded"));
@@ -57,20 +63,28 @@
     };
 
     window.erpLoadState = loadState;
-    window.erpPersist = async (state) => {
+    window.erpPersist = (state) => {
       const currentHeaders = headers();
-      if (!currentHeaders) return { ok: false, reason: "NO_SESSION" };
-      try {
-        const res = await fetch(endpoint, { method: "POST", headers: { ...currentHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ state }) });
-        const data = await res.json();
-        if (res.ok) latestState = String(data?.updatedAt || latestState);
-        return { ok: res.ok, ...data };
-      } catch { return { ok: false, error: "NETWORK_ERROR" }; }
+      if (!currentHeaders) return Promise.resolve({ ok: false, reason: "NO_SESSION" });
+      const snapshot = typeof structuredClone === "function" ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+      persistPending += 1;
+      persistQueue = persistQueue.catch(() => undefined).then(async () => {
+        try {
+          const res = await fetch(endpoint, { method: "POST", headers: { ...currentHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ state: snapshot }) });
+          const data = await res.json().catch(() => ({}));
+          // The following refresh compares the actual state rather than a timestamp.
+          // This prevents same-second edits by different users from being missed.
+          latestState = "";
+          return { ok: res.ok, ...data };
+        } catch { return { ok: false, error: "NETWORK_ERROR" }; }
+        finally { persistPending = Math.max(0, persistPending - 1); }
+      });
+      return persistQueue;
     };
     document.addEventListener("DOMContentLoaded", () => { void loadState(); });
     window.addEventListener("focus", () => { void loadState(); });
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void loadState(); });
-    setInterval(() => { if (document.visibilityState === "visible") void loadState(); }, 15000);
+    setInterval(() => { if (document.visibilityState === "visible") void loadState(); }, 5000);
   };
   installLiveBridge();
   const read=()=>{let s;try{s=JSON.parse(localStorage.getItem(STORE)||'null')}catch{}if(!s||!Array.isArray(s.users))s={users:[{id:'u-superadmin',name:'Sami',username:'Sami',role:'SUPERADMIN',passwordHash:ADMIN_HASH,createdAt:'29.08.2026'}],activity:[]};s.users.forEach(u=>{if(u.role!=='SUPERADMIN')u.role='ADMIN'});if(!s.users.some(u=>u.username?.toLowerCase()==='sami'))s.users.unshift({id:'u-superadmin',name:'Sami',username:'Sami',role:'SUPERADMIN',passwordHash:ADMIN_HASH,createdAt:'29.08.2026'});localStorage.setItem(STORE,JSON.stringify(s));return s};
