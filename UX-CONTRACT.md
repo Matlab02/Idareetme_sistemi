@@ -69,6 +69,7 @@
 | To-do icra statusu | Qəbul etdim / İcra edirəm / Tamamla | serverdə saxlanır | eyni To-do kartı | status və qəbul edən istifadəçi | xəta kartı dəyişməz saxlayır | növbəti status düyməsi |
 | To-do complete | row action | immediate local save | same filtered list | toast | row remains unchanged on failed save | action button |
 | To-do delete | danger row action, then confirmation | stable delete button | same filtered list | toast + audit event | cancel keeps task unchanged | cancel button |
+| To-do çap və ixrac | Çap et / PDF / Excel düymələri | cari status filtri saxlanır | eyni To-do siyahısı | endirmə və ya çap pəncərəsi | popup bloklanarsa izahlı toast | ixrac düyməsi |
 
 ## Navigation and responsive behavior
 

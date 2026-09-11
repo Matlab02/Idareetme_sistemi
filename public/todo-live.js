@@ -48,7 +48,7 @@
     const visible = currentTodos();
     const filterHtml = Object.entries(filters).map(([key, label]) => `<button type="button" class="todo-filter ${activeFilter === key ? "active" : ""}" onclick="window.liveTodo.filter('${key}')">${label}<span>${count(key)}</span></button>`).join("");
     const body = loading ? `<div class="todo-empty"><div class="todo-empty-mark">…</div><h2>Tapşırıqlar yenilənir</h2><p>ERP tapşırıqları serverdən alınır.</p></div>` : visible.map(card).join("") || `<div class="todo-empty"><div class="todo-empty-mark">✓</div><h2>Bu statusda tapşırıq yoxdur</h2><p>Yeni tapşırıq yaradın və onu ERP istifadəçisinə göndərin.</p><button type="button" class="primary" onclick="window.liveTodo.open()">＋ Yeni tapşırıq</button></div>`;
-    return shell("To-do", "Yalnız ERP istifadəçiləri üçün tapşırıqlar, cavablar və icra mərhələləri.", `<div class="todo-head-actions"><button type="button" class="secondary" onclick="window.liveTodo.refresh()">↻ Yenilə</button><button type="button" class="secondary todo-batch-trigger" onclick="window.liveTodo.openBatch()">☷ Bir neçə tapşırıq</button><button type="button" class="primary todo-create" onclick="window.liveTodo.open()">＋ Yeni tapşırıq</button></div>`) + `<section class="todo-summary"><div class="todo-summary-card"><span>Göndərilən</span><strong>${currentStatusCount("pending")}</strong><small>Qəbul gözləyir</small></div><div class="todo-summary-card today"><span>Qəbul edilən</span><strong>${currentStatusCount("accepted")}</strong><small>Sahibi təyin olunub</small></div><div class="todo-summary-card overdue"><span>İcra edilir</span><strong>${currentStatusCount("progress")}</strong><small>İş prosesindədir</small></div><div class="todo-summary-card complete"><span>Tamamlanan</span><strong>${currentStatusCount("completed")}</strong><small>Bağlanmış işlər</small></div></section><section class="todo-workspace"><div class="todo-filterbar" role="group" aria-label="Tapşırıq status filtrləri">${filterHtml}</div><div class="todo-list" aria-live="polite">${body}</div></section></div>`;
+    return shell("To-do", "Yalnız ERP istifadəçiləri üçün tapşırıqlar, cavablar və icra mərhələləri.", `<div class="todo-head-actions"><button type="button" class="secondary" onclick="window.liveTodo.refresh()">↻ Yenilə</button><button type="button" class="secondary" onclick="window.liveTodo.print()">⎙ Çap et</button><button type="button" class="secondary" onclick="window.liveTodo.exportPdf()">↓ PDF</button><button type="button" class="secondary" onclick="window.liveTodo.exportExcel()">↓ Excel</button><button type="button" class="secondary todo-batch-trigger" onclick="window.liveTodo.openBatch()">☷ Bir neçə tapşırıq</button><button type="button" class="primary todo-create" onclick="window.liveTodo.open()">＋ Yeni tapşırıq</button></div>`) + `<section class="todo-summary"><div class="todo-summary-card"><span>Göndərilən</span><strong>${currentStatusCount("pending")}</strong><small>Qəbul gözləyir</small></div><div class="todo-summary-card today"><span>Qəbul edilən</span><strong>${currentStatusCount("accepted")}</strong><small>Sahibi təyin olunub</small></div><div class="todo-summary-card overdue"><span>İcra edilir</span><strong>${currentStatusCount("progress")}</strong><small>İş prosesindədir</small></div><div class="todo-summary-card complete"><span>Tamamlanan</span><strong>${currentStatusCount("completed")}</strong><small>Bağlanmış işlər</small></div></section><section class="todo-workspace"><div class="todo-filterbar" role="group" aria-label="Tapşırıq status filtrləri">${filterHtml}</div><div class="todo-list" aria-live="polite">${body}</div></section></div>`;
   }
 
   async function loadDirectory() {
@@ -111,6 +111,66 @@
     try { const data = await api("POST", { action: "create-batch", tasks }); todos = data.todos || []; db.todos = todos; closeModal(); render(); toast(`${tasks.length} tapşırıq ERP istifadəçilərinə göndərildi.`); }
     catch (reason) { if (error) error.textContent = reason.message || "Tapşırıqlar göndərilə bilmədi."; button.disabled = false; updateBatchCount(); }
   }
+  const escapeExport = value => String(value ?? "").replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character]));
+  const exportRows = () => currentTodos().map((todo, index) => ({
+    number: index + 1,
+    title: todo.title || "—",
+    request: todo.requestId || "Ümumi əməliyyat",
+    recipients: recipientLabel(todo),
+    priority: todo.priority || "Normal",
+    dueDate: dateLabel(todo.dueDate),
+    state: status(todo).label,
+    note: todo.note || "—",
+    createdBy: todo.createdBy || "—",
+    acceptedBy: todo.acceptedBy || "—",
+    createdAt: todo.createdAt ? new Date(todo.createdAt).toLocaleString("az-AZ") : "—",
+    completedAt: todo.completedAt ? new Date(todo.completedAt).toLocaleString("az-AZ") : "—"
+  }));
+  const exportStamp = () => new Date().toISOString().slice(0, 10);
+  const recordExport = (action, total) => { if (typeof audit === "function") audit(action, `${filters[activeFilter]} · ${total} tapşırıq`); };
+  function openPrintableList({ pdf = false } = {}) {
+    const rows = exportRows();
+    if (!rows.length) return toast("İxrac üçün bu filtrdə tapşırıq yoxdur.");
+    const popup = window.open("", "_blank", "popup,width=1200,height=800");
+    if (!popup) return toast("Çap pəncərəsi bloklanıb. Brauzerdə popup icazəsini açın.");
+    const tableRows = rows.map(row => `<tr><td>${row.number}</td><td><b>${escapeExport(row.title)}</b>${row.note !== "—" ? `<small>${escapeExport(row.note)}</small>` : ""}</td><td>${escapeExport(row.request)}</td><td>${escapeExport(row.recipients)}</td><td>${escapeExport(row.priority)}</td><td>${escapeExport(row.dueDate)}</td><td>${escapeExport(row.state)}</td></tr>`).join("");
+    const heading = pdf ? "To-do · PDF kimi yadda saxla" : "To-do siyahısı";
+    popup.document.write(`<!doctype html><html lang="az"><head><meta charset="utf-8"><title>${heading}</title><style>@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{margin:0;color:#14243e;font-family:Arial,Helvetica,sans-serif}header{display:flex;justify-content:space-between;gap:18px;align-items:start;border-bottom:2px solid #075b93;padding-bottom:12px}header span{color:#0b78be;font-size:10px;font-weight:700;letter-spacing:.12em}h1{margin:5px 0;font-size:22px}p{margin:0;color:#687a94;font-size:11px}.meta{text-align:right;font-size:10px;color:#687a94}table{width:100%;margin-top:18px;border-collapse:collapse;font-size:10px}th{padding:8px;background:#075b93;color:#fff;text-align:left;font-size:9px;letter-spacing:.04em}td{padding:8px;border-bottom:1px solid #d8e6eb;vertical-align:top}td:first-child{width:28px;color:#687a94}td:nth-child(2){width:27%}td small{display:block;margin-top:3px;color:#687a94;font-weight:400}footer{margin-top:16px;color:#687a94;font-size:9px}</style></head><body><header><div><span>AZPLOM · İŞ PLANI</span><h1>To-do siyahısı</h1><p>${escapeExport(filters[activeFilter])} filtri üzrə ${rows.length} tapşırıq</p></div><div class="meta">Yaradılıb: ${escapeExport(new Date().toLocaleString("az-AZ"))}</div></header><table><thead><tr><th>№</th><th>Tapşırıq</th><th>Sorğu</th><th>Alıcı</th><th>Prioritet</th><th>Son tarix</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table><footer>AzPlom Təchizat İdarəetmə Sistemi</footer><script>window.onload=()=>window.print()<\/script></body></html>`);
+    popup.document.close();
+    recordExport(pdf ? "TODO_EXPORT_PDF" : "TODO_PRINT", rows.length);
+    if (pdf) toast("Çap pəncərəsində “PDF kimi yadda saxla” seçin.");
+  }
+  function printList() { openPrintableList(); }
+  const xlsxColumn = index => { let value = ""; for (let number = index + 1; number; number = Math.floor((number - 1) / 26)) value = String.fromCharCode(65 + ((number - 1) % 26)) + value; return value; };
+  function downloadFile(blob, filename) { const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = filename; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); }
+  function crc32(bytes) { let crc = -1; for (const byte of bytes) { crc ^= byte; for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0); } return (crc ^ -1) >>> 0; }
+  function zipWorkbook(entries) {
+    const encoder = new TextEncoder(), chunks = [], central = []; let offset = 0;
+    const add16 = (target, value) => target.push(value & 255, (value >>> 8) & 255), add32 = (target, value) => target.push(value & 255, (value >>> 8) & 255, (value >>> 16) & 255, (value >>> 24) & 255);
+    entries.forEach(([name, text]) => { const content = encoder.encode(text), filename = encoder.encode(name), checksum = crc32(content), local = []; add32(local, 0x04034b50); add16(local, 20); add16(local, 0x0800); add16(local, 0); add16(local, 0); add16(local, 0); add32(local, checksum); add32(local, content.length); add32(local, content.length); add16(local, filename.length); add16(local, 0); local.push(...filename, ...content); chunks.push(new Uint8Array(local)); const record = []; add32(record, 0x02014b50); add16(record, 20); add16(record, 20); add16(record, 0x0800); add16(record, 0); add16(record, 0); add16(record, 0); add32(record, checksum); add32(record, content.length); add32(record, content.length); add16(record, filename.length); add16(record, 0); add16(record, 0); add16(record, 0); add16(record, 0); add32(record, 0); add32(record, offset); record.push(...filename); central.push(new Uint8Array(record)); offset += local.length; });
+    const centralSize = central.reduce((sum, item) => sum + item.length, 0), end = []; add32(end, 0x06054b50); add16(end, 0); add16(end, 0); add16(end, entries.length); add16(end, entries.length); add32(end, centralSize); add32(end, offset); add16(end, 0);
+    return new Blob([...chunks, ...central, new Uint8Array(end)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+  function exportExcel() {
+    const rows = exportRows();
+    if (!rows.length) return toast("İxrac üçün bu filtrdə tapşırıq yoxdur.");
+    const headers = ["№", "Tapşırıq", "Sorğu", "Alıcı", "Prioritet", "Son tarix", "Status", "Qeyd", "Yaradan", "Qəbul edən", "Yaradılma vaxtı", "Tamamlanma vaxtı"];
+    const values = rows.map(row => [row.number, row.title, row.request, row.recipients, row.priority, row.dueDate, row.state, row.note, row.createdBy, row.acceptedBy, row.createdAt, row.completedAt]);
+    const widths = [7, 38, 22, 28, 14, 16, 16, 42, 18, 18, 22, 22];
+    const cell = (column, row, value, header = false) => `<c r="${xlsxColumn(column)}${row}"${header ? ' s="1"' : ""} t="inlineStr"><is><t xml:space="preserve">${escapeExport(value)}</t></is></c>`;
+    const sheetRows = [headers, ...values].map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, column) => cell(column, rowIndex + 1, value, rowIndex === 0)).join("")}</row>`).join("");
+    const columns = widths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join("");
+    const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>${columns}</cols><sheetData>${sheetRows}</sheetData></worksheet>`;
+    const types = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+    const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+    const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="To-do" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+    const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Aptos"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Aptos"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF075B93"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`;
+    downloadFile(zipWorkbook([["[Content_Types].xml", types], ["_rels/.rels", rels], ["xl/workbook.xml", workbook], ["xl/_rels/workbook.xml.rels", workbookRels], ["xl/styles.xml", styles], ["xl/worksheets/sheet1.xml", sheet]]), `azplom-todo-${exportStamp()}.xlsx`);
+    recordExport("TODO_EXPORT_XLSX", rows.length);
+    toast("Excel faylı endirildi.");
+  }
+  function exportPdf() { openPrintableList({ pdf: true }); }
   async function changeStatus(id, next) { try { const data = await api("POST", { action: "status", id, status: next }); todos = data.todos || []; db.todos = todos; render(); toast(`${statusMeta[next].label} olaraq qeydə alındı.`); } catch (error) { toast(error.message || "Status yenilənmədi."); } }
   async function remove(id) { const todo = todos.find(item => item.id === id); if (!todo) return; modal(`<div class="todo-delete-dialog"><span>GERİ DÖNÜŞ YOXDUR</span><h2>Tapşırıq silinsin?</h2><p><b>${escText(todo.title)}</b> tapşırığı yalnız siz yaratdığınız üçün silinə bilər.</p></div><div class="actions"><button type="button" class="secondary" id="liveTodoCancel" onclick="closeModal()">Ləğv et</button><button type="button" class="todo-delete-confirm" onclick="window.liveTodo.confirmRemove('${escText(id)}')">Tapşırığı sil</button></div>`); setTimeout(() => document.querySelector("#liveTodoCancel")?.focus(), 0); }
   async function confirmRemove(id) { try { const data = await api("POST", { action: "delete", id }); todos = data.todos || []; db.todos = todos; closeModal(); render(); toast("Tapşırıq silindi."); } catch (error) { toast(error.message || "Tapşırıq silinə bilmədi."); } }
@@ -120,7 +180,7 @@
     if (initialized) return; initialized = true; injectStyles(); const legacyRender = render;
     render = function () { if (page === "todos") { document.querySelector("#root").innerHTML = pageContent(); nav(); document.title = "To-do · AzPlom"; return; } legacyRender(); };
     const navItem = document.querySelector('[data-page="todos"]'); if (navItem) navItem.onclick = () => { page = "todos"; filter = ""; render(); void refresh(); };
-    window.liveTodo = { open, create, openBatch, addBatchRow, removeBatchRow, createBatch, status: changeStatus, remove, confirmRemove, refresh, filter: setFilter, allRecipients, singleRecipient };
+    window.liveTodo = { open, create, openBatch, addBatchRow, removeBatchRow, createBatch, status: changeStatus, remove, confirmRemove, refresh, filter: setFilter, allRecipients, singleRecipient, print: printList, exportPdf, exportExcel };
     void refresh({ paint: false });
     window.addEventListener("erp-session-ready", () => { void refresh(); });
     window.addEventListener("focus", () => { if (page === "todos") void refresh(); });
