@@ -60,7 +60,7 @@
     return true;
   }
   window.softDeleteRequest = softDeleteRequest;
-  const styles = () => { if (document.querySelector("#required-document-styles")) return; const style = document.createElement("style"); style.id = "required-document-styles"; style.textContent = ".documents-panel{margin-top:16px}.documents-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.document-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.document-card{border:1px solid #e3e9f2;border-radius:12px;padding:14px;background:#fbfcfe}.document-card.ready{border-color:#bfe8d2;background:#f5fcf8}.document-card b{display:block;font-size:13px}.document-card small{display:block;color:#8491a6;margin:5px 0 12px;min-height:30px}.document-card input{display:none}.document-card label{display:inline-block;cursor:pointer;color:#1767ce;font-size:12px;font-weight:650}.document-card .file-name{display:block;color:#16845d;font-size:11px;margin-top:9px;overflow-wrap:anywhere}.doc-progress{margin-top:13px;padding:11px;border-radius:10px;background:#f3f7fc;color:#526078;font-size:12px}.doc-progress strong{color:#1767ce}.doc-count{display:inline-block;min-width:40px;padding:5px 9px;border:1px solid #e4eaf3;border-radius:999px;background:#f5f7fb;color:#748198;font-size:12px;font-weight:750;text-align:center;line-height:1}.doc-count.partial{border-color:#f3d79d;background:#fff8e9;color:#a46b0a}.doc-count.complete{border-color:#bfe8d2;background:#e7f8ef;color:#157752}.request-status-filter{min-width:175px;border:1px solid #dce3ed;border-radius:10px;padding:10px 12px;background:#fff;color:#536179;font:inherit}.request-parent{display:flex!important;align-items:center;justify-content:space-between}.request-parent::after{content:'⌄';font-size:15px;line-height:1;transition:transform .2s ease}.request-parent.collapsed::after{transform:rotate(-90deg)}.request-folder-group{display:grid;gap:2px;max-height:180px;overflow:hidden;opacity:1;transition:max-height .22s ease,opacity .18s ease}.request-folder-group.collapsed{max-height:0;opacity:0;pointer-events:none}.request-folder{padding-left:25px!important;font-size:12px!important;color:#7a6a96!important}.request-folder:hover,.request-folder.active{background:#f4effd!important;color:#713fbc!important}.request-folder-button.active{background:#f4effd;color:#713fbc;border-color:#d7c4f3}.danger-action{margin-left:8px;padding:7px 10px;border:1px solid #f0c4cc;border-radius:8px;background:#fff4f5;color:#bd3045;font:inherit;font-size:12px;font-weight:650;cursor:pointer}.danger-action:hover{background:#ffe9ec}.request-filter-empty td{text-align:center!important;color:#8794a7!important;padding:30px 12px!important}@media(max-width:760px){.document-grid{grid-template-columns:1fr}.doc-count{min-width:42px}.request-status-filter{min-width:145px}}"; document.head.appendChild(style); };
+  const styles = () => { if (document.querySelector("#required-document-styles")) return; const style = document.createElement("style"); style.id = "required-document-styles"; style.textContent = ".documents-panel{margin-top:16px}.documents-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.document-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.document-card{border:1px solid #e3e9f2;border-radius:12px;padding:14px;background:#fbfcfe}.document-card.ready{border-color:#bfe8d2;background:#f5fcf8}.document-card b{display:block;font-size:13px}.document-card small{display:block;color:#8491a6;margin:5px 0 12px;min-height:30px}.document-card input{display:none}.document-card label{display:inline-block;cursor:pointer;color:#1767ce;font-size:12px;font-weight:650}.document-card .file-name{display:block;color:#16845d;font-size:11px;margin-top:9px;overflow-wrap:anywhere}.doc-progress{margin-top:13px;padding:11px;border-radius:10px;background:#f3f7fc;color:#526078;font-size:12px}.doc-progress strong{color:#1767ce}.doc-count{display:inline-block;min-width:40px;padding:5px 9px;border:1px solid #e4eaf3;border-radius:999px;background:#f5f7fb;color:#748198;font-size:12px;font-weight:750;text-align:center;line-height:1}.doc-count.partial{border-color:#f3d79d;background:#fff8e9;color:#a46b0a}.doc-count.complete{border-color:#bfe8d2;background:#e7f8ef;color:#157752}.request-status-filter{min-width:175px;border:1px solid #dce3ed;border-radius:10px;padding:10px 12px;background:#fff;color:#536179;font:inherit}.request-parent{display:flex!important;align-items:center;justify-content:space-between}.request-parent::after{content:'⌄';font-size:15px;line-height:1;transition:transform .2s ease}.request-parent.collapsed::after{transform:rotate(-90deg)}.request-folder-group{display:grid;gap:2px;max-height:180px;overflow:hidden;opacity:1;transition:max-height .22s ease,opacity .18s ease}.request-folder-group.collapsed{max-height:0;opacity:0;pointer-events:none}.request-folder{display:flex!important;align-items:center;justify-content:space-between;gap:8px;padding-left:25px!important;font-size:12px!important;color:#7a6a96!important}.request-folder-count{min-width:18px;text-align:center;font-variant-numeric:tabular-nums}.request-folder:hover,.request-folder.active{background:#f4effd!important;color:#713fbc!important}.request-folder-button.active{background:#f4effd;color:#713fbc;border-color:#d7c4f3}.danger-action{margin-left:8px;padding:7px 10px;border:1px solid #f0c4cc;border-radius:8px;background:#fff4f5;color:#bd3045;font:inherit;font-size:12px;font-weight:650;cursor:pointer}.danger-action:hover{background:#ffe9ec}.request-filter-empty td{text-align:center!important;color:#8794a7!important;padding:30px 12px!important}@media(max-width:760px){.document-grid{grid-template-columns:1fr}.doc-count{min-width:42px}.request-status-filter{min-width:145px}}"; document.head.appendChild(style); };
   function documentCount(request) {
     const done = Math.min(required.length, (request.documents || []).filter((item) => required.some((doc) => doc.type === item.type)).length);
     const state = done === required.length ? "complete" : done ? "partial" : "empty";
@@ -81,7 +81,7 @@
     let header = headerRow.querySelector("th[data-request-documents]");
     if (!header) { header = document.createElement("th"); header.dataset.requestDocuments = "1"; header.textContent = "SƏNƏDLƏR"; headerRow.insertBefore(header, headerRow.lastElementChild); }
     const toolbar = document.querySelector(".toolbar");
-    toolbar?.querySelectorAll("#rejectedFolderButton,#completedFolderButton,#waitingCustomerFolderButton").forEach((button) => button.remove());
+    toolbar?.querySelectorAll("#rejectedFolderButton,#salesFolderButton,#waitingCustomerFolderButton").forEach((button) => button.remove());
     if (toolbar && !toolbar.querySelector("#requestStatusFilter")) {
       const select = document.createElement("select");
       select.id = "requestStatusFilter";
@@ -96,10 +96,23 @@
     const statusSelect = toolbar?.querySelector("#requestStatusFilter");
     if (statusSelect && statusSelect.value !== statusFilter) statusSelect.value = statusFilter;
     document.querySelector("#rejectedFolderNav")?.classList.toggle("active", folderMode === "REJECTED");
-    document.querySelector("#completedFolderNav")?.classList.toggle("active", folderMode === "COMPLETED");
+    document.querySelector("#salesFolderNav")?.classList.toggle("active", folderMode === "COMPLETED");
     document.querySelector("#waitingCustomerFolderNav")?.classList.toggle("active", folderMode === "WAITING_CUSTOMER");
     let records = [];
     try { records = db.requests || []; } catch { records = []; }
+    const completedCount = records.filter((request) => request.status === "COMPLETED").length;
+    const salesFolder = document.querySelector("#salesFolderNav");
+    if (salesFolder) salesFolder.innerHTML = `↳ Satışlar <span class="request-folder-count" aria-label="${completedCount} tamamlanmış sorğu">${completedCount || ""}</span>`;
+    const pageHeading = document.querySelector("#root .head h1");
+    const pageDescription = pageHeading?.nextElementSibling;
+    if (pageHeading) {
+      const isSales = folderMode === "COMPLETED";
+      pageHeading.textContent = isSales ? "Satışlar" : "Bütün sorğular";
+      if (pageDescription?.tagName === "P") pageDescription.textContent = isSales
+        ? "Tamamlanan sorğular satış mərhələsində izlənir."
+        : "Qiymət, təklif və sifariş proseslərini buradan izləyin.";
+      document.title = `${isSales ? "Satışlar" : "Sorğular"} — AzPlom`;
+    }
     const rows = [...table.querySelectorAll("tbody tr")].filter((row) => !row.classList.contains("request-filter-empty"));
     let visibleRows = 0;
     rows.forEach((row) => {
@@ -242,7 +255,7 @@
         folderGroup.append(folder);
       };
       addFolder("rejectedFolderNav", "İmtina qovluğu", "REJECTED", "İmtina edilmiş sorğular");
-      addFolder("completedFolderNav", "Tamamlananlar qovluğu", "COMPLETED", "Tamamlanmış sorğular");
+      addFolder("salesFolderNav", "Satışlar", "COMPLETED", "Tamamlanmış sorğuların satış qovluğu");
       addFolder("waitingCustomerFolderNav", "Müştəri gözlənilir", "WAITING_CUSTOMER", "Müştəri cavabı gözlənilən sorğular");
       const setFolderOpen = (shouldOpen) => {
         folderGroup.dataset.open = String(shouldOpen);
