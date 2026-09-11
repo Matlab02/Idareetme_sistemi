@@ -109,12 +109,16 @@
     if (pageHeading) {
       const isSales = folderMode === "SALES";
       const isCompleted = folderMode === "COMPLETED";
-      pageHeading.textContent = isSales ? "Satışlar" : isCompleted ? "Tamamlanan sorğular" : "Bütün sorğular";
-      if (pageDescription?.tagName === "P") pageDescription.textContent = isSales
+      const title = isSales ? "Satışlar" : isCompleted ? "Tamamlanan sorğular" : "Bütün sorğular";
+      const description = isSales
         ? "Tamamlanan sorğular satış qovluğunda ayrıca izlənir."
         : isCompleted
           ? "Tamamlanan sorğuların arxiv siyahısı."
           : "Qiymət, təklif və sifariş proseslərini buradan izləyin.";
+      // #root is observed to enhance the table. Avoid rewriting identical text,
+      // otherwise the observer sees its own change and creates a render loop.
+      if (pageHeading.textContent !== title) pageHeading.textContent = title;
+      if (pageDescription?.tagName === "P" && pageDescription.textContent !== description) pageDescription.textContent = description;
       document.title = `${isSales ? "Satışlar" : isCompleted ? "Tamamlanan sorğular" : "Sorğular"} — AzPlom`;
     }
     const rows = [...table.querySelectorAll("tbody tr")].filter((row) => !row.classList.contains("request-filter-empty"));
