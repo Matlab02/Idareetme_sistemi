@@ -37,7 +37,7 @@
       if (!currentHeaders) return { ok: false, reason: "NO_SESSION" };
       if (persistPending) return { ok: true, deferred: true, reason: "PERSIST_PENDING" };
       try {
-        const res = await fetch(endpoint, { headers: currentHeaders, cache: "no-store" });
+        const res = await fetch(`${endpoint}?_=${Date.now()}`, { headers: currentHeaders, cache: "no-store" });
         const data = await res.json();
         if (!res.ok) return { ok: false, error: data?.error || "STATE_LOAD_FAILED" };
         if (data?.state && typeof db !== "undefined") {
@@ -84,7 +84,7 @@
     document.addEventListener("DOMContentLoaded", () => { void loadState(); });
     window.addEventListener("focus", () => { void loadState(); });
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") void loadState(); });
-    setInterval(() => { if (document.visibilityState === "visible") void loadState(); }, 5000);
+    setInterval(() => { if (document.visibilityState === "visible") void loadState(); }, 2000);
   };
   installLiveBridge();
   const read=()=>{let s;try{s=JSON.parse(localStorage.getItem(STORE)||'null')}catch{}if(!s||!Array.isArray(s.users))s={users:[{id:'u-superadmin',name:'Sami',username:'Sami',role:'SUPERADMIN',passwordHash:ADMIN_HASH,createdAt:'29.08.2026'}],activity:[]};s.users.forEach(u=>{if(u.role!=='SUPERADMIN')u.role='ADMIN'});if(!s.users.some(u=>u.username?.toLowerCase()==='sami'))s.users.unshift({id:'u-superadmin',name:'Sami',username:'Sami',role:'SUPERADMIN',passwordHash:ADMIN_HASH,createdAt:'29.08.2026'});localStorage.setItem(STORE,JSON.stringify(s));return s};
