@@ -96,7 +96,8 @@
     const statusSelect = toolbar?.querySelector("#requestStatusFilter");
     if (statusSelect && statusSelect.value !== statusFilter) statusSelect.value = statusFilter;
     document.querySelector("#rejectedFolderNav")?.classList.toggle("active", folderMode === "REJECTED");
-    document.querySelector("#salesFolderNav")?.classList.toggle("active", folderMode === "COMPLETED");
+    document.querySelector("#completedFolderNav")?.classList.toggle("active", folderMode === "COMPLETED");
+    document.querySelector("#salesFolderNav")?.classList.toggle("active", folderMode === "SALES");
     document.querySelector("#waitingCustomerFolderNav")?.classList.toggle("active", folderMode === "WAITING_CUSTOMER");
     let records = [];
     try { records = db.requests || []; } catch { records = []; }
@@ -106,12 +107,15 @@
     const pageHeading = document.querySelector("#root .head h1");
     const pageDescription = pageHeading?.nextElementSibling;
     if (pageHeading) {
-      const isSales = folderMode === "COMPLETED";
-      pageHeading.textContent = isSales ? "Satışlar" : "Bütün sorğular";
+      const isSales = folderMode === "SALES";
+      const isCompleted = folderMode === "COMPLETED";
+      pageHeading.textContent = isSales ? "Satışlar" : isCompleted ? "Tamamlanan sorğular" : "Bütün sorğular";
       if (pageDescription?.tagName === "P") pageDescription.textContent = isSales
-        ? "Tamamlanan sorğular satış mərhələsində izlənir."
-        : "Qiymət, təklif və sifariş proseslərini buradan izləyin.";
-      document.title = `${isSales ? "Satışlar" : "Sorğular"} — AzPlom`;
+        ? "Tamamlanan sorğular satış qovluğunda ayrıca izlənir."
+        : isCompleted
+          ? "Tamamlanan sorğuların arxiv siyahısı."
+          : "Qiymət, təklif və sifariş proseslərini buradan izləyin.";
+      document.title = `${isSales ? "Satışlar" : isCompleted ? "Tamamlanan sorğular" : "Sorğular"} — AzPlom`;
     }
     const rows = [...table.querySelectorAll("tbody tr")].filter((row) => !row.classList.contains("request-filter-empty"));
     let visibleRows = 0;
@@ -126,7 +130,7 @@
       if (cell.innerHTML !== markup) cell.innerHTML = markup;
       const matches = folderMode === "REJECTED"
         ? request.status === "REJECTED"
-        : folderMode === "COMPLETED"
+        : folderMode === "COMPLETED" || folderMode === "SALES"
           ? request.status === "COMPLETED"
           : folderMode === "WAITING_CUSTOMER"
             ? request.status === "WAITING_CUSTOMER"
@@ -255,7 +259,8 @@
         folderGroup.append(folder);
       };
       addFolder("rejectedFolderNav", "İmtina qovluğu", "REJECTED", "İmtina edilmiş sorğular");
-      addFolder("salesFolderNav", "Satışlar", "COMPLETED", "Tamamlanmış sorğuların satış qovluğu");
+      addFolder("completedFolderNav", "Tamamlananlar qovluğu", "COMPLETED", "Tamamlanmış sorğular");
+      addFolder("salesFolderNav", "Satışlar", "SALES", "Tamamlanmış sorğuların ayrıca satış qovluğu");
       addFolder("waitingCustomerFolderNav", "Müştəri gözlənilir", "WAITING_CUSTOMER", "Müştəri cavabı gözlənilən sorğular");
       const setFolderOpen = (shouldOpen) => {
         folderGroup.dataset.open = String(shouldOpen);
