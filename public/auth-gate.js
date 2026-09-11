@@ -11,6 +11,7 @@
     let latestState = "";
     let persistPending = 0;
     let persistQueue = Promise.resolve();
+    const bundledRequestIds = new Set(["SR-2026-00123", "SR-2026-00124", "SR-2026-00125"]);
     const stateFingerprint = (state) => {
       try { return JSON.stringify(state); } catch { return ""; }
     };
@@ -63,6 +64,24 @@
     };
 
     window.erpLoadState = loadState;
+    window.erpReconcileLocalState = async () => {
+      const currentHeaders = headers();
+      const localRequests = Array.isArray(typeof db !== "undefined" ? db?.requests : null) ? db.requests : [];
+      if (!currentHeaders || !localRequests.length) return { ok: true, added: 0 };
+      try {
+        const response = await fetch(`${endpoint}?_=${Date.now()}`, { headers: currentHeaders, cache: "no-store" });
+        const remote = await response.json().catch(() => ({}));
+        if (!response.ok || !remote?.state || !Array.isArray(remote.state.requests)) return { ok: false, added: 0 };
+        const knownIds = new Set(remote.state.requests.map((request) => String(request?.id || "")));
+        const missing = localRequests.filter((request) => request?.id && !bundledRequestIds.has(request.id) && !knownIds.has(String(request.id)));
+        if (!missing.length) return { ok: true, added: 0 };
+        const state = { ...remote.state, requests: [...missing, ...remote.state.requests] };
+        const saved = await fetch(endpoint, { method: "POST", headers: { ...currentHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ state }) });
+        if (!saved.ok) return { ok: false, added: 0 };
+        latestState = "";
+        return { ok: true, added: missing.length };
+      } catch { return { ok: false, added: 0 }; }
+    };
     window.erpPersist = (state) => {
       const currentHeaders = headers();
       if (!currentHeaders) return Promise.resolve({ ok: false, reason: "NO_SESSION" });
@@ -96,5 +115,5 @@
   const setNav=who=>{const nav=document.querySelector('.nav');if(!nav)return;let item=nav.querySelector('[data-page="superusers"]');if(who?.role==='SUPERADMIN'){if(!item){item=document.createElement('button');item.type='button';item.dataset.page='superusers';item.className='super-nav-item';item.textContent='♙  İstifadəçilər';nav.append(item);item.addEventListener('click',()=>{document.querySelectorAll('.nav button[data-page]').forEach(b=>b.classList.toggle('active',b===item));if(typeof window.superusers==='function')document.querySelector('#root').innerHTML=window.superusers()})}}else if(item)item.remove();const avatar=document.querySelector('.avatar');if(avatar)avatar.textContent=who?.role==='SUPERADMIN'?'SA':'AD';const existing=document.querySelector('.auth-logout');if(!existing){const btn=document.createElement('button');btn.type='button';btn.className='ghost auth-logout';btn.textContent='Çıxış';btn.addEventListener('click',()=>{sessionStorage.removeItem(SESSION);sessionStorage.removeItem('erp-superadmin-session');location.reload()});document.querySelector('.top')?.append(btn)}};
   const setTopLink=who=>{let link=document.querySelector('.super-top-link');if(who?.role==='SUPERADMIN'){if(!link){link=document.createElement('button');link.type='button';link.className='ghost super-top-link';link.textContent='♙ İstifadəçilər';link.addEventListener('click',()=>{if(typeof window.superusers==='function')document.querySelector('#root').innerHTML=window.superusers()});document.querySelector('.top')?.prepend(link)}}else if(link)link.remove()};
   const show=()=>{const who=session();const app=document.querySelector('.app'),g=document.getElementById('authGate');refreshBrand(who);if(!who){if(app)app.style.display='none';if(g)g.style.display='grid';return}if(app)app.style.display='';if(g)g.style.display='none';setNav(who);setTopLink(who);refreshBrand(who);if(typeof window.render==='function')window.render();if(location.hash==='#superadmin'&&who.role==='SUPERADMIN'&&typeof window.superusers==='function')document.querySelector('#root').innerHTML=window.superusers()};
-  document.addEventListener('DOMContentLoaded',()=>{loadModern();styles();gate();read();if(typeof window.superusers!=='function'){const module=document.createElement('script');module.src='superadmin-users.js?v=sa-users9';document.head.append(module)}const form=document.getElementById('authForm');form.addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(form)),username=String(v.username||'').trim(),password=String(v.password||''),api=await apiLogin(username,password);if(api){sessionStorage.setItem(SESSION,JSON.stringify({id:api.uid||username,username:api.username||username,role:username.toLowerCase()==='sami'?'SUPERADMIN':'ADMIN',name:api.username||username,token:api.token}));show();window.dispatchEvent(new Event('erp-session-ready'));await window.erpLoadState?.();return}const s=read(),u=s.users.find(x=>x.username?.toLowerCase()===username.toLowerCase());if(!u||await hash(password)!==u.passwordHash){document.getElementById('authError').textContent='İstifadəçi adı və ya şifrə yanlışdır.';return}sessionStorage.setItem(SESSION,JSON.stringify({id:u.id,username:u.username,role:u.role,name:u.name}));show()});show()});
+  document.addEventListener('DOMContentLoaded',()=>{loadModern();styles();gate();read();if(typeof window.superusers!=='function'){const module=document.createElement('script');module.src='superadmin-users.js?v=sa-users9';document.head.append(module)}const form=document.getElementById('authForm');form.addEventListener('submit',async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(form)),username=String(v.username||'').trim(),password=String(v.password||''),api=await apiLogin(username,password);if(api){sessionStorage.setItem(SESSION,JSON.stringify({id:api.uid||username,username:api.username||username,role:username.toLowerCase()==='sami'?'SUPERADMIN':'ADMIN',name:api.username||username,token:api.token}));const reconciliation=await window.erpReconcileLocalState?.();show();window.dispatchEvent(new Event('erp-session-ready'));await window.erpLoadState?.();if(reconciliation?.added)toast(`${reconciliation.added} lokal sorğu server bazasına köçürüldü.`);return}const localOnly=['localhost','127.0.0.1'].includes(location.hostname)||location.protocol==='file:';if(!localOnly){document.getElementById('authError').textContent='Server girişi təsdiqlənmədi. İstifadəçi adı və şifrəni yoxlayın.';return}const s=read(),u=s.users.find(x=>x.username?.toLowerCase()===username.toLowerCase());if(!u||await hash(password)!==u.passwordHash){document.getElementById('authError').textContent='İstifadəçi adı və ya şifrə yanlışdır.';return}sessionStorage.setItem(SESSION,JSON.stringify({id:u.id,username:u.username,role:u.role,name:u.name}));show()});show()});
 })();
