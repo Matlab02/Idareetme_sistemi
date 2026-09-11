@@ -11,6 +11,7 @@
     let latestState = "";
     let persistPending = 0;
     let persistQueue = Promise.resolve();
+    let queuedFingerprint = "";
     const bundledRequestIds = new Set(["SR-2026-00123", "SR-2026-00124", "SR-2026-00125"]);
     const stateFingerprint = (state) => {
       try { return JSON.stringify(state); } catch { return ""; }
@@ -26,6 +27,13 @@
       // A user may be editing an official document spreadsheet. Do not replace
       // their unsaved cells when another user updates the shared ERP state.
       if (typeof page !== "undefined" && page === "official-document") return;
+      // Never rebuild an open data-entry dialog while the operator is typing.
+      if (document.querySelector(".modal-bg")) return;
+      // Invoice, stock and product screens use their own renderer; the base dashboard renderer would otherwise replace them after a sync.
+      if (document.querySelector("#root .invoice-tabs") && window.invoiceModule?.render) {
+        window.invoiceModule.render();
+        return;
+      }
       if (exists && isViewingRequest && typeof window.openRequestWorkspace === "function") {
         window.openRequestWorkspace(requestId);
         return;
@@ -86,6 +94,10 @@
       const currentHeaders = headers();
       if (!currentHeaders) return Promise.resolve({ ok: false, reason: "NO_SESSION" });
       const snapshot = typeof structuredClone === "function" ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+      const snapshotFingerprint = stateFingerprint(snapshot);
+      // audit() and save() can run together. Coalesce identical snapshots so a product entry produces one network write, not duplicate POSTs.
+      if (snapshotFingerprint && (snapshotFingerprint === latestState || snapshotFingerprint === queuedFingerprint)) return persistQueue;
+      queuedFingerprint = snapshotFingerprint;
       persistPending += 1;
       persistQueue = persistQueue.catch(() => undefined).then(async () => {
         try {
@@ -93,10 +105,13 @@
           const data = await res.json().catch(() => ({}));
           // The following refresh compares the actual state rather than a timestamp.
           // This prevents same-second edits by different users from being missed.
-          latestState = "";
+          if (res.ok && snapshotFingerprint) latestState = snapshotFingerprint;
           return { ok: res.ok, ...data };
         } catch { return { ok: false, error: "NETWORK_ERROR" }; }
-        finally { persistPending = Math.max(0, persistPending - 1); }
+        finally {
+          persistPending = Math.max(0, persistPending - 1);
+          if (queuedFingerprint === snapshotFingerprint) queuedFingerprint = "";
+        }
       });
       return persistQueue;
     };
