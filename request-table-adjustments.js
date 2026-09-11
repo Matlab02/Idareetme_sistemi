@@ -21,7 +21,23 @@
     const tbody = table.querySelector("tbody");
     if (tbody && !table.dataset.saleObserver) { table.dataset.saleObserver = "1"; const observer = new MutationObserver(() => { table.querySelectorAll("tbody tr").forEach((row) => { const sale = row.querySelector(".source-sale"), cost = row.querySelector(".source-cost"), margin = row.querySelector(".source-margin"); if (sale && sale.tagName !== "INPUT") { const value = twoDecimals(decimalValue(cost?.value || 0) * (1 + decimalValue(margin?.value || 0) / 100)); sale.outerHTML = `<input class="source-sale" type="text" inputmode="decimal" value="${value}" title="Satış qiymətini əl ilə də dəyişə bilərsiniz">`; } bindSaleFormatting(row.querySelector(".source-sale")); }); }); observer.observe(tbody, { childList: true }); }
     const save = document.querySelector("#detailSave");
-    if (save && !save.dataset.manualSaleBound) { save.dataset.manualSaleBound = "1"; const previous = save.onclick; save.onclick = () => { table.querySelectorAll("tbody tr").forEach((row) => { const cost = decimalValue(row.querySelector(".source-cost")?.value || 0), sale = decimalValue(row.querySelector(".source-sale")?.value || 0), margin = row.querySelector(".source-margin"); if (margin && cost > 0 && sale >= 0) margin.value = (((sale / cost) - 1) * 100).toFixed(2); }); previous?.(); page = "requests"; render(); }; }
+    if (save && !save.dataset.manualSaleBound) {
+      save.dataset.manualSaleBound = "1";
+      const previous = save.onclick;
+      save.onclick = () => {
+        table.querySelectorAll("tbody tr").forEach((row) => {
+          const cost = decimalValue(row.querySelector(".source-cost")?.value || 0);
+          const sale = decimalValue(row.querySelector(".source-sale")?.value || 0);
+          const margin = row.querySelector(".source-margin");
+          if (margin && cost > 0 && sale >= 0) margin.value = (((sale / cost) - 1) * 100).toFixed(2);
+        });
+
+        // The original request save handler refreshes the current workspace.
+        // Do not render the request list here: a user must remain in the same
+        // request after saving a price, margin, supplier or status change.
+        previous?.();
+      };
+    }
     const applyAll = document.querySelector("#applyAll");
     if (applyAll && !applyAll.dataset.recalculateBound) { applyAll.dataset.recalculateBound = "1"; const previousApply = applyAll.onclick; applyAll.onclick = () => { previousApply?.(); table.querySelectorAll("tbody tr").forEach((row) => recalculate(row)); }; }
   }
